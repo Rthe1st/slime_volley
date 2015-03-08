@@ -8,7 +8,12 @@ var gulp = require('gulp'),
 gulp.task('scripts', function(){
     gulp.start('game_engine');
     return browserify('./source/scripts/mechanics.js', {debug:true})
-        .bundle()
+        .bundle().on('error', function(err){
+          // print the error (can replace with gulp-util)
+          console.log(err.message);
+          // end this stream
+          this.emit('end');
+        })
         .pipe(vinylSourceStream('bundle.js'))
         .pipe(gulp.dest('./build/scripts'))
         .pipe(notify({ message: 'scripts task complete' }));
