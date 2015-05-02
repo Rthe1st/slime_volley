@@ -4,8 +4,6 @@ var material;
 
 var teams = [];
 
-var floor;
-
 var balls = [];
 
 var INITIAL_GOAL_SIZE = {HEIGHT: 100, WIDTH:50};
@@ -13,22 +11,6 @@ var INITIAL_GOAL_SIZE = {HEIGHT: 100, WIDTH:50};
 var goalScored = false;
 
 function preload() {
-}
-
-//to do: make this a singleton
-var Floor = function(){
-    this.sprite = game.add.sprite();
-    this.sprite.x = game.world.width/2;
-    this.sprite.y = game.world.height;
-
-//  Create our physics body.
-    game.physics.p2.enable(this.sprite);
-    this.sprite.body.static = true;
-    //hack to get rid of a default rectangle, see if there's a better way
-    this.sprite.body.setRectangle(0,0,0,0,0);
-    this.sprite.body.addPlane(0,0,0);
-    this.sprite.body.setMaterial(material.floor);
-    this.sprite.body.debug = true;
 }
 
 var Goal = function(x, y, color){
@@ -102,12 +84,6 @@ Ball.prototype.endContact = function(body, shapeA, shapeB, equation) {
             }
         }
     }
-    if(body === floor.sprite.body){
-        if(this.sprite.body.force.y == this.sprite.body.mass * game.physics.p2.gravity.y){
-            this.sprite.body.applyForce([0,700],this.sprite.body.x,this.sprite.body.y);
-            return;
-        }
-    }
 }
 
 Ball.prototype.reset = function(){
@@ -127,14 +103,12 @@ var Slime = function (x, y, color, controls){
         down: game.input.keyboard.addKey(controls.down),
         right: game.input.keyboard.addKey(controls.right)
     };
-    this.maxSpeed = 300;
+    this.maxSpeed = 200;
     var size = 28;
     this.sprite = game.add.sprite();
     this.sprite.name = name;
     this.sprite.x = x;
     this.sprite.y = y;
-    this.initialJumpForce = 2000;
-    this.jumpForce = this.initialJumpForce;
     //not sure what this does, if the drawCircle and body circle are given the same values
     //this is needed to make collision match up (maybe scales drawing to body?)
     this.sprite.scale.set(2);
@@ -155,64 +129,39 @@ var Slime = function (x, y, color, controls){
     this.sprite.body.collideWorldBounds = true;
 
     this.sprite.body.setMaterial(material.slime);
-
-    this.sprite.body.onBeginContact.add(this.slimeHitFloor, this);
     
     this.sprite.body.debug = true;
 };
 
-Slime.prototype.slimeHitFloor = function(body, shapeA, shapeB, equation){
-    if(body === floor.sprite.body){
-        this.resetJumpForce();
-    }
-}
-
-//note: replacing this with some kind of "fuel reserve" would probably make it more fun + intuitive
-Slime.prototype.nextJumpForce = function(){
-    this.jumpDecreaseRate += 50;
-    this.jumpForce -= this.jumpDecreaseRate;
-    if(this.jumpForce < 0){
-        this.jumpForce = 0;
-    }
-    return this.jumpForce;
-}
-
-Slime.prototype.resetJumpForce = function(){
-    this.jumpForce = this.initialJumpForce;
-    this.jumpDecreaseRate = 0;
-}
-
 Slime.prototype.move = function(){
     var force = {x:0,y:0};
     var velocity = {x: this.sprite.body.velocity.x, y:this.sprite.body.velocity.y};
-    if (this.controls.left.isDown)
-    {
-        force.x = 1000;
-        if(this.sprite.body.velocity.x > 0){
-            velocity.x /= 2;
+    var directions = {"LEFT":{axis:"x", scaling:-1}, "RIGHT":{axis:"x", scaling:1}, "UP":{axis:"y", scaling:-1}, "DOWN":{axis:"y", scaling:1}};
+    function move(slime, direction){
+        //-1 because force axes are inverted vs velocity axes?!?
+        force[direction.axis] = 2000*-1*direction.scaling;
+        var directionMatchesVelocity = (slime.sprite.body.velocity[direction.axis] * direction.scaling) < 0;
+        if(directionMatchesVelocity){
+            velocity[direction.axis] /= 3;
+        }
+        if(slime.sprite.body.velocity[direction.axis] > slime.maxSpeed){
+            velocity[direction.axis] = slime.maxSpeed;
+        }else if(slime.sprite.body.velocity[direction.axis] < -slime.maxSpeed){
+            velocity[direction.axis] = -slime.maxSpeed;
         }
     }
-    if (this.controls.right.isDown)
-    {
-        force.x = -1000;
-        if(this.sprite.body.velocity.x < 0){
-            velocity.x /= 2;
-        }
+    if(this.controls.down.isDown){
+        move(this, directions.DOWN, velocity, force);
+    }else if(this.controls.up.isDown){
+        move(this, directions.UP, velocity, force);
     }
-    if (this.controls.up.isDown)
-    {
-        force.y = this.nextJumpForce();
-    }
-    if (this.controls.down.isDown)
-    {
-        force.y = -game.physics.p2.gravity.y;
-    }
-    if(this.sprite.body.velocity.x > this.maxSpeed){
-        velocity.x = this.maxSpeed;
-    }else if(this.sprite.body.velocity.x < -this.maxSpeed){
-         velocity.x = -this.maxSpeed;
+    if(this.controls.left.isDown){
+        move(this, directions.LEFT, velocity, force);
+    }else if(this.controls.right.isDown){
+        move(this, directions.RIGHT, velocity, force);
     }
     this.sprite.body.moveRight(velocity.x);
+    this.sprite.body.moveDown(velocity.y);
     this.sprite.body.applyForce([force.x, force.y], this.sprite.body.x, this.sprite.body.y);
 };
 
@@ -268,34 +217,28 @@ function create() {
 
     material = {
         slime: new Phaser.Physics.P2.Material("SLIME"),
-        ball: new Phaser.Physics.P2.Material("BALL"),
-        floor: new Phaser.Physics.P2.Material("FLOOR")
+        ball: new Phaser.Physics.P2.Material("BALL")
         };
 
     game.physics.p2.restitution = 0.5;
-    game.physics.p2.gravity.y = 600;
+    game.physics.p2.gravity.y = 0;
     game.physics.p2.friction = 0.9;
     teams[0] = new Team(0x0000ff,
         {up:87, left:65, down: 83, right: 68},
-        {x: INITIAL_GOAL_SIZE.WIDTH/2, y: game.world.height-INITIAL_GOAL_SIZE.HEIGHT/2},
-        {x: game.world.width/4, y: game.world.height-150},
+        {x: INITIAL_GOAL_SIZE.WIDTH/2, y: game.world.height/2},
+        {x: game.world.width/4, y: game.world.height/2},
         {x: game.world.width/4, y: 0}
         );
     teams[1] = new Team(0xff0000,
         {up:38, left:37, down: 40, right: 39},
-        {x: game.world.width-INITIAL_GOAL_SIZE.WIDTH/2, y: game.world.height-INITIAL_GOAL_SIZE.HEIGHT/2},
-        {x: game.world.width*(3/4), y: game.world.height-150},
+        {x: game.world.width-INITIAL_GOAL_SIZE.WIDTH/2, y: game.world.height/2},
+        {x: game.world.width*(3/4), y: game.world.height/2},
         {x: game.world.width*(3/4), y: 0}
         );
-        
-    floor = new Floor();
 
     balls[0] = new Ball(game.world.width/2, game.world.height/2, 0xffffff);
     var slime_ball_contact = new Phaser.Physics.P2.ContactMaterial(material.slime, material.ball, {restitution:0.75, stiffness : Number.MAX_VALUE, friction: 0.99});
     game.physics.p2.addContactMaterial(slime_ball_contact);
-    var ball_floor_contact = new Phaser.Physics.P2.ContactMaterial(material.floor, material.ball, {
-        restitution:0.5, stiffness : Number.MAX_VALUE});
-    game.physics.p2.addContactMaterial(ball_floor_contact);
 }
 
 function update() {
