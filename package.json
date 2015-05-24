@@ -8,21 +8,27 @@
   "contributors": [
     "Richard Sommerville"
   ],
+  "main": "server/app.js",
   "bugs": {
     "url": ""
   },
   "dependencies": {
+    "express": "4.10.2",
     "phaser": "^2.2.2"
   },
   "devDependencies": {
     "del": "^1.1.1",
     "gulp": "^3.8.11",
-    "gulp-notify": "^2.2.0",
-    "vinyl-source-stream": "^1.0.0"
+    "vinyl-source-stream": "^1.0.0",
+    "browserify": "10.2.0",
+    "gulp-util": "^3.0.4"
   },
   "keywords": [],
   "repository": "",
   "licenses": [
     {}
-  ]
+  ],
+  "scripts": {
+    "prepublish": "gulp"
+  }
 }
