@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "express": "4.10.2",
-    "phaser": "^2.2.2"
+    "p2": "^0.6.1",
+    "phaser": "^2.2.2",
+    "socket.io": "^1.3.5"
   },
   "devDependencies": {
     "del": "^1.1.1",
@@ -30,5 +32,22 @@
   ],
   "scripts": {
     "prepublish": "gulp"
+  },
+  "jshintConfig": {
+    "undef": true,
+    "unused": true,
+    "curly": true,
+    "eqeqeq": true,
+    "freeze": true,
+    "forin": true,
+    "latedef": true,
+    "maxcomplexity": 6,
+    "maxdepth": 3,
+    "maxparams": 4,
+    "maxstatements": 15,
+    "noarg": true,
+    "nonbsp": true,
+    "nonew": true,
+    "singleGroups": true
   }
 }

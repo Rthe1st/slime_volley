@@ -12,6 +12,7 @@ gulp.task('scripts', function(){
     return browserify('./source/scripts/mechanics.js', {debug:true})
         .bundle().on('error', function(err){
           gulpUtil.log('failed browserify');
+          gulpUtil.log(err);
           this.emit('end');
         })
         .pipe(vinylSourceStream('bundle.js'))

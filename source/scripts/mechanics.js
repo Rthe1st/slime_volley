@@ -1,4 +1,18 @@
-var game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {preload: preload, create:create, update:update}, false, false);
+/*jslint browser: true, browserify: true, devel: true*/
+/* global Phaser, io*/
+'use strict';
+
+var socket = io.connect();
+
+var clientSide = require('./clientSide.js');
+var serverSide = require('./serverSide.js');
+var shared = require('./shared.js');
+
+var networkUpdate;
+
+var auth;
+
+var game;
 
 var material;
 
@@ -9,6 +23,8 @@ var balls = [];
 var INITIAL_GOAL_SIZE = {HEIGHT: 100, WIDTH:50};
 
 var goalScored = false;
+
+var controls;
 
 function preload() {
 }
@@ -64,13 +80,13 @@ var Ball = function(x, y, color){
     this.sprite.body.onEndContact.add(this.endContact, this);
 };
 
-Ball.prototype.endContact = function(body, shapeA, shapeB, equation) {
+Ball.prototype.endContact = function(body) {
     //could be sped up by checking type of body first
     for(var i=0;i<teams.length;i++){
         if(body === teams[i].goal.sprite.body){
-            if(i == 0){
+            if(i === 0){
                 teams[1].statCard.changeScore(1, true);
-            }else if(i == 1){
+            }else if(i === 1){
                 teams[0].statCard.changeScore(1, true);
             }
             goalScored = true;
@@ -84,25 +100,19 @@ Ball.prototype.endContact = function(body, shapeA, shapeB, equation) {
             }
         }
     }
-}
+};
 
 Ball.prototype.reset = function(){
-    console.log("reset");
+    console.log('reset');
     var ballSprite = this.sprite;
     ballSprite.reset(this.startCords.x, this.startCords.y);
     ballSprite.body.setZeroRotation();
     ballSprite.body.setZeroVelocity();
     ballSprite.body.setZeroForce();
     ballSprite.owner = null;
-}
+};
 
-var Slime = function (x, y, color, controls){
-    this.controls = {
-        up: game.input.keyboard.addKey(controls.up),
-        left: game.input.keyboard.addKey(controls.left),
-        down: game.input.keyboard.addKey(controls.down),
-        right: game.input.keyboard.addKey(controls.right)
-    };
+var Slime = function (x, y, color){
     this.maxSpeed = 200;
     var size = 28;
     this.sprite = game.add.sprite();
@@ -133,10 +143,10 @@ var Slime = function (x, y, color, controls){
     this.sprite.body.debug = true;
 };
 
-Slime.prototype.move = function(){
+Slime.prototype.move = function(inputSample){
     var force = {x:0,y:0};
     var velocity = {x: this.sprite.body.velocity.x, y:this.sprite.body.velocity.y};
-    var directions = {"LEFT":{axis:"x", scaling:-1}, "RIGHT":{axis:"x", scaling:1}, "UP":{axis:"y", scaling:-1}, "DOWN":{axis:"y", scaling:1}};
+    var directions = {'LEFT':{axis:'x', scaling:-1}, 'RIGHT':{axis:'x', scaling:1}, 'UP':{axis:'y', scaling:-1}, 'DOWN':{axis:'y', scaling:1}};
     function move(slime, direction){
         //-1 because force axes are inverted vs velocity axes?!?
         force[direction.axis] = 2000*-1*direction.scaling;
@@ -150,14 +160,14 @@ Slime.prototype.move = function(){
             velocity[direction.axis] = -slime.maxSpeed;
         }
     }
-    if(this.controls.down.isDown){
+    if(inputSample.down){
         move(this, directions.DOWN, velocity, force);
-    }else if(this.controls.up.isDown){
+    }else if(inputSample.up){
         move(this, directions.UP, velocity, force);
     }
-    if(this.controls.left.isDown){
+    if(inputSample.left){
         move(this, directions.LEFT, velocity, force);
-    }else if(this.controls.right.isDown){
+    }else if(inputSample.right){
         move(this, directions.RIGHT, velocity, force);
     }
     this.sprite.body.moveRight(velocity.x);
@@ -168,29 +178,28 @@ Slime.prototype.move = function(){
 var StatCard = function(cords, score){
     this.x = cords.x;
     this.y = cords.y;
-    this.scoreText = game.add.text(this.x, this.y, "", {font: 'bold 20pt Arial', stroke: '#FFFFFF', strokeThickness: 10});
+    this.scoreText = game.add.text(this.x, this.y, '', {font: 'bold 20pt Arial', stroke: '#FFFFFF', strokeThickness: 10});
     this.changeScore(score, false);
-}
+};
 
 //relative is a boolean, if false, value is added to current score
 StatCard.prototype.changeScore = function(value, relative){
-   if(relative){
+    if(relative){
         this.score+= value;
-   }else{
-       this.score = value;
-   }
-   this.scoreText.setText("Score: "+this.score);
-}
+    }else{
+        this.score = value;
+    }
+    this.scoreText.setText('Score: '+this.score);
+};
 
-var Team = function(color, controls, goalCords, slimeCords, statCords){
+var Team = function(color, goalCords, slimeCords, statCords){
     this.startSlimeCords = slimeCords;
     this.color = color;
-    this.controls = controls;
     this.goal = new Goal(goalCords.x, goalCords.y, this.color);
     this.slimes = [];
-    this.slimes[0] = new Slime(slimeCords.x, slimeCords.y, this.color, this.controls);
+    this.slimes[0] = new Slime(slimeCords.x, slimeCords.y, this.color);
     this.statCard = new StatCard(statCords, 0);
-}
+};
 
 Team.prototype.reset = function resetTeams(){
     for(var i=0; i < this.slimes.length; i++){
@@ -200,13 +209,13 @@ Team.prototype.reset = function resetTeams(){
         slimeSprite.body.setZeroForce();
         slimeSprite.reset(this.startSlimeCords.x, this.startSlimeCords.y);
     }
-}
+};
 
 function onGoalReset(){
     for(var i=0;i<teams.length;i++){
         teams[i].reset();
     }
-    for(var i=0;i<balls.length;i++){
+    for(var g=0;g<balls.length;g++){
         balls[i].reset();
     }
 }
@@ -215,41 +224,141 @@ function create() {
 
     game.physics.startSystem(Phaser.Physics.P2JS);
 
+    controls = {
+            up: game.input.keyboard.addKey(87),//w
+            left: game.input.keyboard.addKey(65),//a
+            down: game.input.keyboard.addKey(83),//s
+            right: game.input.keyboard.addKey(68)//d
+    };
+
     material = {
-        slime: new Phaser.Physics.P2.Material("SLIME"),
-        ball: new Phaser.Physics.P2.Material("BALL")
-        };
+        slime: new Phaser.Physics.P2.Material('SLIME'),
+        ball: new Phaser.Physics.P2.Material('BALL')
+    };
 
     game.physics.p2.restitution = 0.5;
     game.physics.p2.gravity.y = 0;
     game.physics.p2.friction = 0.9;
     teams[0] = new Team(0x0000ff,
-        {up:87, left:65, down: 83, right: 68},
         {x: INITIAL_GOAL_SIZE.WIDTH/2, y: game.world.height/2},
         {x: game.world.width/4, y: game.world.height/2},
         {x: game.world.width/4, y: 0}
-        );
+    );
     teams[1] = new Team(0xff0000,
-        {up:38, left:37, down: 40, right: 39},
         {x: game.world.width-INITIAL_GOAL_SIZE.WIDTH/2, y: game.world.height/2},
-        {x: game.world.width*(3/4), y: game.world.height/2},
-        {x: game.world.width*(3/4), y: 0}
-        );
+        {x: game.world.width*3/4, y: game.world.height/2},
+        {x: game.world.width*3/4, y: 0}
+    );
 
     balls[0] = new Ball(game.world.width/2, game.world.height/2, 0xffffff);
     var slime_ball_contact = new Phaser.Physics.P2.ContactMaterial(material.slime, material.ball, {restitution:0.75, stiffness : Number.MAX_VALUE, friction: 0.99});
     game.physics.p2.addContactMaterial(slime_ball_contact);
 }
 
-function update() {
+socket.on(shared.messageTypes.observerSet, function () {
+    console.log('players full, you\'ve been placed in the observer queue');
+    socket.isPlayer = false;
+    game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {preload: preload, create:create, update:update}, false, false);
+});
+
+socket.on('set auth', function(){
+    clientSide.unregisterSocket(socket);
+    serverSide.registerSocket(socket, clientSide.teamNum, clientSide.slimeNum);
+    networkUpdate = serverSide.update;
+    /*remove all client auths, via function in client auth?
+    socket.removeListener("news", cbProxy);
+    */
+});
+
+socket.on(shared.messageTypes.playerSet, function (data) {
+    socket.isPlayer = true;
+    var team = data.team;
+    var player = data.slime;
+    auth = data.auth;
+    console.log('auth');
+    console.log('you\'ve joined as a player');
+    //could this use socket variables instead?
+    if(auth){
+        serverSide.registerSocket(socket, team, player);
+        networkUpdate = serverSide.update;
+    }else{
+        clientSide.registerSocket(socket, team, player);
+        networkUpdate = clientSide.update;
+    }
+    game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {preload: preload, create:create, update:update}, false, false);
+});
+
+var packageState = function(){
+    var state = {};
+    state.teams = [];
     for(var i=0;i<teams.length;i++){
-        var currentTeam = teams[i];
-        for(var slimeIndex = 0; slimeIndex < currentTeam.slimes.length; slimeIndex++){
-            currentTeam.slimes[slimeIndex].move();
+        for(var slimeNum=0;slimeNum<teams[i].length;slimeNum++){
+            //force and rotation probaly needed as well
+            var localSlime = teams[i].slimes[slimeNum];
+            var stateSlime = state.teams[i].slimes[slimeNum];
+            stateSlime.postion = {x:localSlime.body.x, y:localSlime.body.y};
+            stateSlime.velocity = {x: localSlime.body.velocity.x, y:localSlime.body.velocity.y};
         }
     }
+    return state;
+};
+
+var loadNewState = function(state){
+    for(var i=0;i<teams.length;i++){
+        for(var slimeNum=0;slimeNum<teams[i].length;slimeNum++){
+            //force and rotation probaly needed as well
+            var localSlime = teams[i].slimes[slimeNum];
+            var stateSlime = state.teams[i].slimes[slimeNum];
+            localSlime.body.x = stateSlime.postion.x;
+            localSlime.body.y = stateSlime.postion.y;
+            localSlime.body.velocity.x = stateSlime.velocity.x;
+            localSlime.body.velocity.y = stateSlime.velocity.y;
+        }
+    }
+};
+
+var moveSlime = function(teamNum, slimeNum, inputSample){
+    teams[teamNum].slimes[slimeNum].move(inputSample);
+};
+
+var sampleInput = function(){
+    var inputSample = {up:false, down:false, left:false, right:false};
+    Object.keys(controls).forEach(function(key){
+        if(controls[key].isDown){
+            inputSample[key] = true;
+        }
+    });
+    return inputSample;
+};
+
+var localUpdate = function(){
     if(goalScored){
         onGoalReset();
         goalScored = false;
+    }
+    //dirty hack to see if current set up is working
+    //server side code exectues move slime for every recieved input sample
+    //this code should only execute moveslime on slimes with no processed inpout sample
+    //but w/e for now
+    for(var t=0;t<teams.length;t++){
+        for(var s=0;s<teams[t].length;s++){
+            moveSlime(t, s, {up:false, down:false, left:false, right:false});
+        }
+    }
+
+};
+
+function update() {
+    //well this is crap, client/server updates take different callbacks
+    //pass in an object or set callbacks on registration to avoid
+    if(socket.isPlayer){
+        if(auth){
+            //sample inpiut is temp, wont be needed after libaring mechanics from serverside
+            networkUpdate(moveSlime, packageState, localUpdate, sampleInput);
+        }else{
+            networkUpdate(sampleInput, loadNewState, moveSlime);
+        }
+    }else{
+        console.log('obserever update code not implemented');
     }
 }
