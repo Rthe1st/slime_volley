@@ -13,5 +13,5 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = "hashicorp/precise64"
   config.vm.provision "docker"
 
-  config.vm.network :forwarded_port, host: 80, guest: 80
+  config.vm.network :forwarded_port, host: 80, guest: 80, host_ip: "192.168.0.*"
 end
