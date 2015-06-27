@@ -8,3 +8,6 @@ EXPOSE 80
 #for dev, link this volume to the local project folder
 VOLUME /srv/slime_volley
 CMD nodejs /srv/slime_volley/server/app.js
+#on dev, use this CMD instead to re-install slime_volley if you've made breaking local changes to it
+#e.g. new dependencies
+#CMD npm install /srv/slime_volley; nodejs /srv/slime_volley/server/app.js
