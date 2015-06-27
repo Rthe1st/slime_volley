@@ -2,14 +2,6 @@
 /* global Phaser, io*/
 'use strict';
 
-var socket = io.connect();
-
-var clientSide = require('./clientSide.js');
-var serverSide = require('./serverSide.js');
-var shared = require('./shared.js');
-
-var networkUpdate;
-
 var auth;
 
 var game;
@@ -224,11 +216,12 @@ function create() {
 
     game.physics.startSystem(Phaser.Physics.P2JS);
 
+    var keyCodes = {w: 87, a: 65, s: 83, d: 68};
     controls = {
-            up: game.input.keyboard.addKey(87),//w
-            left: game.input.keyboard.addKey(65),//a
-            down: game.input.keyboard.addKey(83),//s
-            right: game.input.keyboard.addKey(68)//d
+            up: game.input.keyboard.addKey(keyCodes.w),
+            left: game.input.keyboard.addKey(keyCodes.a),
+            down: game.input.keyboard.addKey(keyCodes.s),
+            right: game.input.keyboard.addKey(keyCodes.d)
     };
 
     material = {
@@ -255,46 +248,20 @@ function create() {
     game.physics.p2.addContactMaterial(slime_ball_contact);
 }
 
-socket.on(shared.messageTypes.observerSet, function () {
-    console.log('players full, you\'ve been placed in the observer queue');
-    socket.isPlayer = false;
+var startGame = function(update){
     game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {preload: preload, create:create, update:update}, false, false);
-});
-
-socket.on('set auth', function(){
-    clientSide.unregisterSocket(socket);
-    serverSide.registerSocket(socket, clientSide.teamNum, clientSide.slimeNum);
-    networkUpdate = serverSide.update;
-    /*remove all client auths, via function in client auth?
-    socket.removeListener("news", cbProxy);
-    */
-});
-
-socket.on(shared.messageTypes.playerSet, function (data) {
-    socket.isPlayer = true;
-    var team = data.team;
-    var player = data.slime;
-    auth = data.auth;
-    console.log('auth');
-    console.log('you\'ve joined as a player');
-    //could this use socket variables instead?
-    if(auth){
-        serverSide.registerSocket(socket, team, player);
-        networkUpdate = serverSide.update;
-    }else{
-        clientSide.registerSocket(socket, team, player);
-        networkUpdate = clientSide.update;
-    }
-    game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {preload: preload, create:create, update:update}, false, false);
-});
+};
 
 var packageState = function(){
     var state = {};
     state.teams = [];
     for(var i=0;i<teams.length;i++){
-        for(var slimeNum=0;slimeNum<teams[i].length;slimeNum++){
+        state.teams[i] = {};
+        state.teams[i].slimes = [];
+        for(var slimeNum=0;slimeNum<teams[i].slimes.length;slimeNum++){
             //force and rotation probaly needed as well
-            var localSlime = teams[i].slimes[slimeNum];
+            var localSlime = teams[i].slimes[slimeNum].sprite;
+            state.teams[i].slimes[slimeNum] = {};
             var stateSlime = state.teams[i].slimes[slimeNum];
             stateSlime.postion = {x:localSlime.body.x, y:localSlime.body.y};
             stateSlime.velocity = {x: localSlime.body.velocity.x, y:localSlime.body.velocity.y};
@@ -305,9 +272,9 @@ var packageState = function(){
 
 var loadNewState = function(state){
     for(var i=0;i<teams.length;i++){
-        for(var slimeNum=0;slimeNum<teams[i].length;slimeNum++){
+        for(var slimeNum=0;slimeNum<teams[i].slimes.length;slimeNum++){
             //force and rotation probaly needed as well
-            var localSlime = teams[i].slimes[slimeNum];
+            var localSlime = teams[i].slimes[slimeNum].sprite;
             var stateSlime = state.teams[i].slimes[slimeNum];
             localSlime.body.x = stateSlime.postion.x;
             localSlime.body.y = stateSlime.postion.y;
@@ -331,34 +298,39 @@ var sampleInput = function(){
     return inputSample;
 };
 
-var localUpdate = function(){
+var localUpdate = function(playerInfo, inputSample){
+    if(arguments.length < 2){
+        inputSample = sampleInput();
+    }
     if(goalScored){
         onGoalReset();
         goalScored = false;
     }
-    //dirty hack to see if current set up is working
-    //server side code exectues move slime for every recieved input sample
-    //this code should only execute moveslime on slimes with no processed inpout sample
-    //but w/e for now
+
+    /*if what I wrote below is true, why would we even need to loop through non-local slimes?
+    * check by experimentation yo*/
+
+    //this function should take a list of non-local slimes
+    //these would be slimes server has already simulated move for
+    //doesnt matter for now as slime.move doesnt effect anything is input samples are false
+    //but this would change if, say, slime physics was only updated of slime.move (instead of every update as in p2)
+    //similar to how we exclude the local slime
     for(var t=0;t<teams.length;t++){
-        for(var s=0;s<teams[t].length;s++){
-            moveSlime(t, s, {up:false, down:false, left:false, right:false});
+        for(var s=0;s<teams[t].slimes.length;s++){
+            if(t === playerInfo.team && s === playerInfo.slime){
+                moveSlime(t, s, inputSample);
+            }else {
+                moveSlime(t, s, {up: false, down: false, left: false, right: false});
+            }
         }
     }
-
 };
 
-function update() {
-    //well this is crap, client/server updates take different callbacks
-    //pass in an object or set callbacks on registration to avoid
-    if(socket.isPlayer){
-        if(auth){
-            //sample inpiut is temp, wont be needed after libaring mechanics from serverside
-            networkUpdate(moveSlime, packageState, localUpdate, sampleInput);
-        }else{
-            networkUpdate(sampleInput, loadNewState, moveSlime);
-        }
-    }else{
-        console.log('obserever update code not implemented');
-    }
-}
+module.exports = {
+    localUpdate: localUpdate,
+    packageState: packageState,
+    sampleInput: sampleInput,
+    moveSlime: moveSlime,
+    loadNewState: loadNewState,
+    startGame: startGame
+};

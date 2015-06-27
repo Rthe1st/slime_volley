@@ -6,7 +6,8 @@ var app = express();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var path = require('path');
-var messageTypes = require('../source/scripts/shared.js').messageTypes;
+var messageTypes = {playerSet: 'set player', playerJoined: 'player joined', playerLeft: 'player left', observerSet: 'observer set'};
+
 console.log(messageTypes);
 
 var sendMoveCount = 0;

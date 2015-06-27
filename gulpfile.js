@@ -9,7 +9,7 @@ var gulp = require('gulp'),
 //scripts
 gulp.task('scripts', function(){
     gulp.start('game_engine');
-    return browserify('./source/scripts/mechanics.js', {debug:true})
+    return browserify('./source/scripts/socketSetUp.js', {debug:true})
         .bundle().on('error', function(err){
           gulpUtil.log('failed browserify');
           gulpUtil.log(err);
