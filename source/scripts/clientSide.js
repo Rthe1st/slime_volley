@@ -7,14 +7,14 @@ var socket;
 
 var serverState;
 var acceptedInputSample;
-var serverStateUpdated = false;
+var serverStateDirty = false;
 var unackInputSamples = [];
 var sampleNum = 0;
 
 var addSocketCallbacks = function(socket){
     socket.on('receive state', function (data) {
         serverState = data.state;
-        serverStateUpdated = true;
+        serverStateDirty = true;
         acceptedInputSample = data.lastProcessedInput;
     });
 };
@@ -28,15 +28,17 @@ var sendMove = function(inputSample, sampleNum){
 };
 
 var update = function(){
-    mechanics.loadNewState(serverState);
     //observers never need to sample input
-    if(!socket.isPlayer && serverStateUpdated){
+    if(!socket.isPlayer && serverStateDirty){
+        mechanics.loadNewState(serverState);
         return;
     }
     //sending time stamps of how long controls held for good idea?
     //^^careful about phaser (maybe) having variable length frames
     //before processing new input, check for new server state and re-run stored inputSamples
-    if(serverStateUpdated){
+    if(serverStateDirty){
+        mechanics.loadNewState(serverState);
+        serverStateDirty = false;
         //this wont work properly because we dont move time on appropiatly between actions?
         //crude method would be to call to <updateEngine> once per input duration in frames
         //(plus extra calls between input actions)
