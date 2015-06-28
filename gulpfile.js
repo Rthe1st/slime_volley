@@ -2,7 +2,8 @@ var gulp = require('gulp'),
     browserify = require('browserify'),
     vinylSourceStream = require('vinyl-source-stream'),
     del = require('del'),
-    gulpUtil = require('gulp-util');
+    gulpUtil = require('gulp-util'),
+    babelify = require('babelify');
     
  var outDir = './public';
     
@@ -10,7 +11,9 @@ var gulp = require('gulp'),
 gulp.task('scripts', function(){
     gulp.start('game_engine');
     return browserify('./source/scripts/socketSetUp.js', {debug:true})
-        .bundle().on('error', function(err){
+        .transform(babelify)
+        .bundle()
+        .on('error', function(err){
           gulpUtil.log('failed browserify');
           gulpUtil.log(err);
           this.emit('end');
