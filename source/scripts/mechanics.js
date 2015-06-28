@@ -68,17 +68,19 @@ class Ball extends Phaser.Sprite {
         this.body.debug = true;
 
         this.body.onEndContact.add(this.endContact, this);
+
         game.add.existing(this);
     }
 
     endContact(body) {
         //could be sped up by checking type of body first
         for(var i=0;i<teams.length;i++){
+            //consider disallowing this client side, so score only changes when confirmed by server
             if(body === teams[i].goal.body){
                 if(i === 0){
-                    teams[1].statCard.changeScore(1, true);
+                    teams[1].statCard.changeScore(1);
                 }else if(i === 1){
-                    teams[0].statCard.changeScore(1, true);
+                    teams[0].statCard.changeScore(1);
                 }
                 goalScored = true;
                 return;
@@ -176,16 +178,17 @@ class StatCard{
             stroke: '#FFFFFF',
             strokeThickness: 10
         });
-        this.changeScore(score, false);
+        this.setScore(score);
+    }
+
+    setScore(value){
+        this.score = value;
+        this.scoreText.setText('Score: '+this.score);
     }
 
     //relative is a boolean, if false, value is added to current score
-    changeScore(value, relative){
-        if(relative){
-            this.score+= value;
-        }else{
-            this.score = value;
-        }
+    changeScore(value){
+        this.score+= value;
         this.scoreText.setText('Score: '+this.score);
     }
 }
@@ -261,34 +264,51 @@ var startGame = function(update){
 };
 
 var packageState = function(){
+    function packageBody(body){
+        //rotation and rotation velocity needed as well
+        //(as soon as players/balls are non-symentrical/non-circles)
+        var bodyData = {};
+        bodyData.position = {x:body.x, y:body.y};
+        bodyData.velocity = {x: body.velocity.x, y:body.velocity.y};
+        return bodyData;
+    }
     var state = {};
     state.teams = [];
     for(var i=0;i<teams.length;i++){
         state.teams[i] = {};
+        state.teams[i].score = teams[i].statCard.score;
         state.teams[i].slimes = [];
         for(var slimeNum=0;slimeNum<teams[i].slimes.length;slimeNum++){
-            //force and rotation probaly needed as well
             var localSlime = teams[i].slimes[slimeNum];
-            state.teams[i].slimes[slimeNum] = {};
-            var stateSlime = state.teams[i].slimes[slimeNum];
-            stateSlime.postion = {x:localSlime.body.x, y:localSlime.body.y};
-            stateSlime.velocity = {x: localSlime.body.velocity.x, y:localSlime.body.velocity.y};
+            state.teams[i].slimes[slimeNum] = packageBody(localSlime.body);
         }
+    }
+    state.balls = [];
+    for(var g=0;g<balls.length;g++){
+        state.balls[g] = packageBody(balls[g].body);
     }
     return state;
 };
 
 var loadNewState = function(state){
+    function loadBody(bodyData, body){
+        //rotation and rotation velocity needed as well
+        //(as soon as players/balls are non-symentrical/non-circles)
+        body.x = bodyData.position.x;
+        body.y = bodyData.position.y;
+        body.velocity.x = bodyData.velocity.x;
+        body.velocity.y = bodyData.velocity.y;
+    }
     for(var i=0;i<teams.length;i++){
+        teams[i].statCard.setScore(state.teams[i].score);
         for(var slimeNum=0;slimeNum<teams[i].slimes.length;slimeNum++){
-            //force and rotation probaly needed as well
             var localSlime = teams[i].slimes[slimeNum];
             var stateSlime = state.teams[i].slimes[slimeNum];
-            localSlime.body.x = stateSlime.postion.x;
-            localSlime.body.y = stateSlime.postion.y;
-            localSlime.body.velocity.x = stateSlime.velocity.x;
-            localSlime.body.velocity.y = stateSlime.velocity.y;
+            loadBody(stateSlime, localSlime.body);
         }
+    }
+    for(var g=0;g<balls.length;g++){
+        loadBody(state.balls[g], balls[g].body);
     }
 };
 
