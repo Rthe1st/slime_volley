@@ -31,6 +31,7 @@ var update = function(){
     //observers never need to sample input
     if(!socket.isPlayer && serverStateDirty){
         mechanics.loadNewState(serverState);
+        serverStateDirty = false;
         return;
     }
     //sending time stamps of how long controls held for good idea?
@@ -48,9 +49,8 @@ var update = function(){
         }
     }
     //now process newest input
-    var inputSample = mechanics.sampleInput();
-    var allfalse = !(inputSample.up || inputSample.down || inputSample.left || inputSample.right);
-    if(!allfalse){
+    var inputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
+    if(inputSample !== null){
         unackInputSamples.push(inputSample);
         sendMove(inputSample, sampleNum);
     }

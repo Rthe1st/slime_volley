@@ -2,6 +2,32 @@
 /* global Phaser, io*/
 'use strict';
 
+var devHacks = function(){
+    for(var team of teams){
+        for(var slime of team.slimes){
+            slime.maxSpeed = Number(document.getElementById('maxSpeed').value);
+            slime.breakingRate = Number(document.getElementById('breakingRate').value);
+            slime.moveForce = Number(document.getElementById('moveForce').value);
+            slime.body.mass = Number(document.getElementById('slimeMass').value);
+        }
+    }
+    for(var ball of balls){
+        ball.maxSpeed = Number(document.getElementById('ballMaxSpeed').value);
+        ball.body.mass = Number(document.getElementById('ballMass').value);
+    }
+    useMouse = "true" === document.getElementById('useMouse').value;
+};
+
+var devHacksSet = function(){
+    document.getElementById('maxSpeed').value = teams[0].slimes[0].maxSpeed;
+    document.getElementById('breakingRate').value = teams[0].slimes[0].breakingRate;
+    document.getElementById('moveForce').value = teams[0].slimes[0].moveForce;
+    document.getElementById('slimeMass').value = teams[0].slimes[0].body.mass;
+    document.getElementById('ballMaxSpeed').value = balls[0].maxSpeed;
+    document.getElementById('ballMass').value = balls[0].body.mass;
+    document.getElementById('useMouse').value = useMouse;
+};
+
 var auth;
 
 var game;
@@ -17,6 +43,8 @@ var INITIAL_GOAL_SIZE = {HEIGHT: 100, WIDTH:50};
 var goalScored = false;
 
 var controls;
+
+var useMouse = true;
 
 function preload() {
 }
@@ -44,6 +72,7 @@ class Ball extends Phaser.Sprite {
         this.startCords = {x: x, y: y};
         this.owner = null;//the team that last touched the ball
         var size = 12;
+        this.maxSpeed = 400;
         //not sure what this does, if the drawCircle and body circle are given the same values
         //this is needed to make collision match up (maybe scales drawing to body?)
         this.scale.set(2);
@@ -109,6 +138,8 @@ class Slime extends Phaser.Sprite {
     constructor(x, y, color) {
         super(game, x, y);
         this.maxSpeed = 200;
+        this.moveForce = 2000;
+        this.breakingRate = 0.3;
         var size = 28;
         this.name = name;
         //not sure what this does, if the drawCircle and body circle are given the same values
@@ -137,6 +168,14 @@ class Slime extends Phaser.Sprite {
     }
 
     move(inputSample){
+        if(useMouse){
+            this.mouseMove(inputSample);
+        }else{
+            this.keyboardMove(inputSample);
+        }
+    }
+
+    keyboardMove(inputSample){
         var force = {x:0,y:0};
         var velocity = {x: this.body.velocity.x, y:this.body.velocity.y};
         var directions = {'LEFT':{axis:'x', scaling:-1}, 'RIGHT':{axis:'x', scaling:1}, 'UP':{axis:'y', scaling:-1}, 'DOWN':{axis:'y', scaling:1}};
@@ -154,18 +193,48 @@ class Slime extends Phaser.Sprite {
             }
         }
         if(inputSample.down){
-            move(this, directions.DOWN, velocity, force);
+            move(this, directions.DOWN);
         }else if(inputSample.up){
-            move(this, directions.UP, velocity, force);
+            move(this, directions.UP);
         }
         if(inputSample.left){
-            move(this, directions.LEFT, velocity, force);
+            move(this, directions.LEFT);
         }else if(inputSample.right){
-            move(this, directions.RIGHT, velocity, force);
+            move(this, directions.RIGHT);
         }
         this.body.moveRight(velocity.x);
         this.body.moveDown(velocity.y);
         this.body.applyForce([force.x, force.y], this.body.x, this.body.y);
+
+    }
+
+    mouseMove(inputSample){
+        var force = {x:0,y:0};
+        var velocity = {x: this.body.velocity.x, y:this.body.velocity.y};
+        var mouseDirection = inputSample.direction;
+        function move(slime, axis) {
+            //-1 because force axes are inverted vs velocity axes?!?
+            force[axis] = slime.moveForce * -1 * mouseDirection[axis];
+            var directionMatchesVelocity = (slime.body.velocity[axis] * mouseDirection[axis]) < 0;
+            if (directionMatchesVelocity) {
+                velocity[axis] *= slime.breakingRate;
+            }
+        }
+        function limit(slime){
+            var slimeVelocity = slime.body.velocity;
+            var magnitude = magnitudeXY(slimeVelocity);
+            var normalised = normaliseXY(slimeVelocity);
+            if(magnitude > slime.maxSpeed){
+                slimeVelocity.x = slime.maxSpeed * normalised.x;
+                slimeVelocity.y = slime.maxSpeed * normalised.y;
+            }
+        }
+        move(this, 'x');
+        move(this, 'y');
+        this.body.moveRight(velocity.x);
+        this.body.moveDown(velocity.y);
+        this.body.applyForce([force.x, force.y], this.body.x, this.body.y);
+        limit(this);
     }
 }
 
@@ -257,6 +326,8 @@ function create() {
     balls[0] = new Ball(game.world.width/2, game.world.height/2, 0xffffff);
     var slime_ball_contact = new Phaser.Physics.P2.ContactMaterial(material.slime, material.ball, {restitution:0.75, stiffness : Number.MAX_VALUE, friction: 0.99});
     game.physics.p2.addContactMaterial(slime_ball_contact);
+    devHacksSet();
+    document.getElementById('setHacks').onclick = devHacks;
 }
 
 var startGame = function(update){
@@ -316,40 +387,59 @@ var moveSlime = function(teamNum, slimeNum, inputSample){
     teams[teamNum].slimes[slimeNum].move(inputSample);
 };
 
-var sampleInput = function(){
-    var inputSample = {up:false, down:false, left:false, right:false};
-    Object.keys(controls).forEach(function(key){
-        if(controls[key].isDown){
-            inputSample[key] = true;
-        }
-    });
+var magnitudeXY = function(raw){
+    return Math.sqrt(Math.pow(raw.x, 2)+Math.pow(raw.y, 2));
+}
+
+var normaliseXY = function(raw){
+    var magnitude = magnitudeXY(raw);
+    return {x:raw.x/magnitude, y:raw.y/magnitude};
+}
+
+var sampleInput = function(teamNum, slimeNum){
+    var slime = teams[teamNum].slimes[slimeNum];
+    var relativePoint = {x: slime.x, y: slime.y};
+    var inputSample;
+    var mousePointer = game.input.mousePointer;
+    var mouse = game.input.mouse;
+    if(useMouse && mousePointer.isDown && mouse.button === Phaser.Mouse.LEFT_BUTTON){
+        inputSample = {};
+        //extract a normalised direction from player to mouse
+        var rawDiff = {x:mousePointer.worldX-relativePoint.x, y:mousePointer.worldY-relativePoint.y};
+        inputSample.direction = normaliseXY(rawDiff);
+        inputSample.direction.x = Math.round(inputSample.direction.x);
+        inputSample.direction.y = Math.round(inputSample.direction.y);
+    }else if(!useMouse) {
+        inputSample = {up: false, down: false, left: false, right: false};
+        Object.keys(controls).forEach(function (key) {
+            if (controls[key].isDown) {
+                inputSample[key] = true;
+            }
+        });
+    }else{
+        inputSample = null;
+    }
     return inputSample;
 };
 
 var localUpdate = function(playerInfo, inputSample){
     if(arguments.length < 2){
-        inputSample = sampleInput();
+        inputSample = sampleInput(playerInfo.team, playerInfo.slime);
+        if(inputSample !== null) {
+            moveSlime(playerInfo.team, playerInfo.slime, inputSample);
+        }
     }
     if(goalScored){
         onGoalReset();
         goalScored = false;
     }
 
-    /*if what I wrote below is true, why would we even need to loop through non-local slimes?
-    * check by experimentation yo*/
-
-    //this function should take a list of non-local slimes
-    //these would be slimes server has already simulated move for
-    //doesnt matter for now as slime.move doesnt effect anything is input samples are false
-    //but this would change if, say, slime physics was only updated of slime.move (instead of every update as in p2)
-    //similar to how we exclude the local slime
-    for(var t=0;t<teams.length;t++){
-        for(var s=0;s<teams[t].slimes.length;s++){
-            if(t === playerInfo.team && s === playerInfo.slime){
-                moveSlime(t, s, inputSample);
-            }else {
-                moveSlime(t, s, {up: false, down: false, left: false, right: false});
-            }
+    for(var ball of balls) {
+        var magnitude = magnitudeXY(ball.body.velocity);
+        var normalised = normaliseXY(ball.body.velocity);
+        if (magnitude > ball.maxSpeed) {
+            ball.body.velocity.x = ball.maxSpeed * normalised.x;
+            ball.body.velocity.y = ball.maxSpeed * normalised.y;
         }
     }
 };
