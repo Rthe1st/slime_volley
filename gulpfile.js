@@ -9,7 +9,6 @@ var gulp = require('gulp'),
     
 //scripts
 gulp.task('scripts', function(){
-    gulp.start('game_engine');
     return browserify('./source/scripts/socketSetUp.js', {debug:true})
         .transform(babelify)
         .bundle()
@@ -41,7 +40,7 @@ gulp.task('clean', function(callback){
 
 //default
 gulp.task('default',['clean'], function (){
-    gulp.start('scripts', 'html');
+    gulp.start('scripts', 'html', 'game_engine');
 });
 
 //watch
