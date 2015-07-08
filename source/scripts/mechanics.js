@@ -2,31 +2,31 @@
 /* global Phaser, io*/
 'use strict';
 
-//replace this with dat-gui
-var devHacks = function () {
-    for (var team of teams) {
-        for (var slime of team.slimes) {
-            slime.maxSpeed = Number(document.getElementById('maxSpeed').value);
-            slime.breakingRate = Number(document.getElementById('breakingRate').value);
-            slime.moveForce = Number(document.getElementById('moveForce').value);
-            slime.body.mass = Number(document.getElementById('slimeMass').value);
+var dat = require('dat-gui');
+
+var settings = {useMouse: true};
+
+var loadGUI = function(){
+    var gui = new dat.GUI();
+    gui.add(settings, 'useMouse');
+    for (var teamNum = 0; teamNum < teams.length; teamNum++) {
+        var team = teams[teamNum];
+        var teamFolder = gui.addFolder('Team '+teamNum);
+        for (var slimeNum = 0; slimeNum < team.slimes.length; slimeNum++) {
+            var slime = team.slimes[slimeNum];
+            var slimeFolder = teamFolder.addFolder('Slime '+slimeNum);
+            slimeFolder.add(slime, 'maxSpeed');
+            slimeFolder.add(slime, 'breakingRate');
+            slimeFolder.add(slime, 'moveForce');
+            slimeFolder.add(slime.body, 'mass');
         }
     }
-    for (var ball of balls) {
-        ball.maxSpeed = Number(document.getElementById('ballMaxSpeed').value);
-        ball.body.mass = Number(document.getElementById('ballMass').value);
+    for (var ballNum=0; ballNum < balls.length; ballNum++) {
+        var ball = balls[ballNum];
+        var ballFolder = gui.addFolder('Ball '+ballNum);
+        ballFolder.add(ball, 'maxSpeed');
+        ballFolder.add(ball.body, 'mass');
     }
-    useMouse = "true" === document.getElementById('useMouse').value;
-};
-
-var devHacksSet = function () {
-    document.getElementById('maxSpeed').value = teams[0].slimes[0].maxSpeed;
-    document.getElementById('breakingRate').value = teams[0].slimes[0].breakingRate;
-    document.getElementById('moveForce').value = teams[0].slimes[0].moveForce;
-    document.getElementById('slimeMass').value = teams[0].slimes[0].body.mass;
-    document.getElementById('ballMaxSpeed').value = balls[0].maxSpeed;
-    document.getElementById('ballMass').value = balls[0].body.mass;
-    document.getElementById('useMouse').value = useMouse;
 };
 
 var auth;
@@ -44,8 +44,6 @@ var INITIAL_GOAL_SIZE = {HEIGHT: 100, WIDTH: 50};
 var goalScored = false;
 
 var controls;
-
-var useMouse = true;
 
 function preload() {
 }
@@ -169,7 +167,7 @@ class Slime extends Phaser.Sprite {
     }
 
     move(inputSample) {
-        if (useMouse) {
+        if (settings.useMouse) {
             this.mouseMove(inputSample);
         } else {
             this.keyboardMove(inputSample);
@@ -178,75 +176,79 @@ class Slime extends Phaser.Sprite {
 
     keyboardMove(inputSample) {
         var force = {x: 0, y: 0};
-        var velocity = {x: this.body.velocity.x, y: this.body.velocity.y};
+        var velocity = this.body.velocity;
         var directions = {
             'LEFT': {axis: 'x', scaling: -1},
             'RIGHT': {axis: 'x', scaling: 1},
             'UP': {axis: 'y', scaling: -1},
             'DOWN': {axis: 'y', scaling: 1}
         };
+        //reference for nested functions (who cant access slime via this)
+        var slime = this;
 
-        function move(slime, direction) {
+        function move(direction) {
             //-1 because force axes are inverted vs velocity axes?!?
             force[direction.axis] = 2000 * -1 * direction.scaling;
-            var directionOppsesVelocity = (slime.body.velocity[direction.axis] * direction.scaling) < 0;
+            var directionOppsesVelocity = (velocity[direction.axis] * direction.scaling) < 0;
             if (directionOppsesVelocity) {
-                slime.body.velocity[direction.axis] = velocity[direction.axis] / 3;
+                velocity[direction.axis] /= 3;
             }
         }
-        function limitVelocity(slime, axis){
-            if (slime.body.velocity[axis] > slime.maxSpeed) {
+        function limitVelocity(axis){
+            if (velocity[axis] > slime.maxSpeed) {
                 velocity[axis] = slime.maxSpeed;
-            } else if (slime.body.velocity[axis] < -slime.maxSpeed) {
+            } else if (velocity[axis] < -slime.maxSpeed) {
                 velocity[axis] = -slime.maxSpeed;
             }
         }
-        //since force isn't applied to velocity until after update
-        //limited velocity at start of next frame
-        limitVelocity(this, 'x');
-        limitVelocity(this, 'y');
         if (inputSample.down) {
-            move(this, directions.DOWN);
+            move(directions.DOWN);
         } else if (inputSample.up) {
-            move(this, directions.UP);
+            move(directions.UP);
         }
         if (inputSample.left) {
-            move(this, directions.LEFT);
+            move(directions.LEFT);
         } else if (inputSample.right) {
-            move(this, directions.RIGHT);
+            move(directions.RIGHT);
         }
+        //force isn't applied until after update, so its effect cannot be limited here
+        //so real speed can be maxSpeed + force effect
+        //could move limit to a post physics function to fix
+        limitVelocity('x');
+        limitVelocity('y');
         this.body.applyForce([force.x, force.y], this.body.x, this.body.y);
     }
 
     mouseMove(inputSample) {
         var force = {x: 0, y: 0};
-        var velocity = {x: this.body.velocity.x, y: this.body.velocity.y};
+        var velocity = this.body.velocity;
         var mouseDirection = {x: inputSample[0], y: inputSample[1]};
+        //reference for nested functions (who cant access slime via this)
+        var slime = this;
 
-        function move(slime, axis) {
+        function move(axis) {
             //-1 because force axes are inverted vs velocity axes?!?
             force[axis] = 2000 * -1 * mouseDirection[axis];
-            var directionOpposesVelocity = (slime.body.velocity[axis] * mouseDirection[axis]) < 0;
+            var directionOpposesVelocity = (velocity[axis] * mouseDirection[axis]) < 0;
             if (directionOpposesVelocity) {
                 velocity[axis] /= 3;
             }
         }
 
-        function limit(slime) {
-            var slimeVelocity = slime.body.velocity;
-            var magnitude = magnitudeXY(slimeVelocity);
-            var normalised = normaliseXY(slimeVelocity);
+        function limit() {
+            var magnitude = magnitudeXY(velocity);
+            var normalised = normaliseXY(velocity);
             if (magnitude > slime.maxSpeed) {
-                slimeVelocity.x = slime.maxSpeed * normalised.x;
-                slimeVelocity.y = slime.maxSpeed * normalised.y;
+                velocity.x = slime.maxSpeed * normalised.x;
+                velocity.y = slime.maxSpeed * normalised.y;
             }
         }
-
-        limit(this);
-        move(this, 'x');
-        move(this, 'y');
-        this.body.moveRight(velocity.x);
-        this.body.moveDown(velocity.y);
+        move('x');
+        move('y');
+        //force isn't applied until after update, so its effect cannot be limited here
+        //so real speed can be maxSpeed + force effect
+        //could move limit to a post physics function to fix
+        limit();
         this.body.applyForce([force.x, force.y], this.body.x, this.body.y);
     }
 }
@@ -348,16 +350,10 @@ function create() {
         friction: 0.99
     });
     game.physics.p2.addContactMaterial(slime_ball_contact);
-    devHacksSet();
-    //game.enableStep();
-    document.getElementById('setHacks').onclick = hackyStepCallback;//devHacks;
-    //hackyStepCallback();
+    loadGUI();
 }
 
-var hackyStepCallback;
-
-var startGame = function (update, stepCallback) {
-    hackyStepCallback = stepCallback;
+var startGame = function (update) {
     game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {
         preload: preload,
         create: create,
@@ -440,7 +436,7 @@ var normaliseXY = function (raw) {
 }
 
 var sampleInput = function (teamNum, slimeNum) {
-    if (useMouse) {
+    if (settings.useMouse) {
         return sampleMouse(teamNum, slimeNum);
     } else {
         return sampleKeyboard();
