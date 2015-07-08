@@ -6,16 +6,17 @@ var mechanics = require('./mechanics.js');
 var socket;
 
 var serverState;
-var acceptedInputSample;
+var currentAcceptedSampleNum = 0;
+var lastAcceptedSampleNum = 0;
 var serverStateDirty = false;
 var unackInputSamples = [];
-var sampleNum = 0;
 
 var addSocketCallbacks = function(socket){
     socket.on('receive state', function (data) {
         serverState = data.state;
         serverStateDirty = true;
-        acceptedInputSample = data.lastProcessedInput;
+        lastAcceptedSampleNum = currentAcceptedSampleNum;
+        currentAcceptedSampleNum = data.lastProcessedInput;
     });
 };
 
@@ -23,8 +24,8 @@ var unregisterSocket = function(socket){
     socket.removeListener('receive state');
 };
 
-var sendMove = function(inputSample, sampleNum){
-    socket.emit('send move', {inputSample: inputSample, inputNum: sampleNum});
+var sendMove = function(inputSample){
+    socket.emit('send move', {inputSample: inputSample, inputNum: currentAcceptedSampleNum+unackInputSamples.length});
 };
 
 var update = function(){
@@ -34,28 +35,29 @@ var update = function(){
         serverStateDirty = false;
         return;
     }
-    //sending time stamps of how long controls held for good idea?
-    //^^careful about phaser (maybe) having variable length frames
     //before processing new input, check for new server state and re-run stored inputSamples
+    //for client side extrapolation
     if(serverStateDirty){
         mechanics.loadNewState(serverState);
         serverStateDirty = false;
-        //this wont work properly because we dont move time on appropiatly between actions?
-        //crude method would be to call to <updateEngine> once per input duration in frames
-        //(plus extra calls between input actions)
-        unackInputSamples = unackInputSamples.slice(acceptedInputSample, unackInputSamples.length);
+        //doesnt take into account time between use inputs
+        var indexOfCurAccepted = currentAcceptedSampleNum+1-lastAcceptedSampleNum;
+        unackInputSamples = unackInputSamples.slice(indexOfCurAccepted);
         for(var i=0;i<unackInputSamples.length;i++){
-            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, unackInputSamples[i]);
+            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, unackInputSamples[i].inputSample);
+            mechanics.localUpdate(socket.playerInfo);
+            mechanics.manualUpdateHack();
         }
     }
-    //now process newest input
+    //now process newest local inputs
     var inputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
     if(inputSample !== null){
-        unackInputSamples.push(inputSample);
-        sendMove(inputSample, sampleNum);
+        var samplePack = {inputSample: inputSample, framesBetweenSamples: frameChange-1};
+        unackInputSamples.push(samplePack);
+        sendMove(inputSample);
+        mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputSample);
     }
-    sampleNum++;
-    mechanics.localUpdate(socket.playerInfo, inputSample);
+    mechanics.localUpdate(socket.playerInfo);
 };
 
 module.exports = {
