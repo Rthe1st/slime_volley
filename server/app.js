@@ -6,7 +6,12 @@ var app = express();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var path = require('path');
-var messageTypes = {playerSet: 'set player', playerJoined: 'player joined', playerLeft: 'player left', observerSet: 'observer set'};
+var messageTypes = {
+    playerSet: 'set player',
+    playerJoined: 'player joined',
+    playerLeft: 'player left',
+    observerSet: 'observer set'
+};
 
 console.log(messageTypes);
 
@@ -16,19 +21,19 @@ var sendStateCount = 0;
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/', function (req, res) {
-  var options = {
-    root: __dirname + '/../public/'
-  };
+    var options = {
+        root: __dirname + '/../public/'
+    };
 
-  res.sendFile('html/game.html', options);
+    res.sendFile('html/game.html', options);
 });
 
 var server = http.listen(80, function () {
 
-  var host = server.address().address;
-  var port = server.address().port;
+    var host = server.address().address;
+    var port = server.address().port;
 
-  console.log('Example app listening at http://%s:%s', host, port);
+    console.log('Example app listening at http://%s:%s', host, port);
 
 });
 
@@ -37,133 +42,133 @@ var playerSockets = [];
 var numTeams = 2;
 var teamSize = 1;
 var teams = [];
-for(var i=0;i<numTeams;i++){
-  teams[i] = {};
-  teams[i].freeSlimes = [];
-  for(var slime=0;slime<teamSize;slime++){
-    teams[i].freeSlimes[slime] = slime;
-  }
-  teams[i].assignedSlimes = {};
+for (var i = 0; i < numTeams; i++) {
+    teams[i] = {};
+    teams[i].freeSlimes = [];
+    for (var slime = 0; slime < teamSize; slime++) {
+        teams[i].freeSlimes[slime] = slime;
+    }
+    teams[i].assignedSlimes = {};
 }
-var assignSlime = function(socket){
-  socket.auth = playerSockets.length === 0;
-  playerSockets.push(socket);
-  for(var i=0;i<teams.length; i++){
-    if(teams[i].freeSlimes.length > 0){
-      socket.team = i;
-      socket.slime = teams[i].freeSlimes.pop();
-      teams[socket.team].assignedSlimes[socket.slime] = socket;
-      break;
+var assignSlime = function (socket) {
+    socket.auth = playerSockets.length === 0;
+    playerSockets.push(socket);
+    for (var i = 0; i < teams.length; i++) {
+        if (teams[i].freeSlimes.length > 0) {
+            socket.team = i;
+            socket.slime = teams[i].freeSlimes.pop();
+            teams[socket.team].assignedSlimes[socket.slime] = socket;
+            break;
+        }
     }
-  }
 };
-var removeSlime = function(socket){
-  //looping is lame, but sockets being reomoved at any index makes solution tricky
-  for(var i=0;i<playerSockets.length;i++){
-    if(playerSockets[i].team === socket.team && playerSockets[i].slime === socket.slime){
-      playerSockets.splice(i, 1);
-      break;
+var removeSlime = function (socket) {
+    //looping is lame, but sockets being reomoved at any index makes solution tricky
+    for (var i = 0; i < playerSockets.length; i++) {
+        if (playerSockets[i].team === socket.team && playerSockets[i].slime === socket.slime) {
+            playerSockets.splice(i, 1);
+            break;
+        }
     }
-  }
-  delete teams[socket.team].assignedSlimes[socket.slime];
-  teams[socket.team].freeSlimes.push(socket.slime);
+    delete teams[socket.team].assignedSlimes[socket.slime];
+    teams[socket.team].freeSlimes.push(socket.slime);
 };
 var observerSockets = [];
 
-var playerMessage = function(socket, reason, broadcast){
-  var payload = {
-    team: socket.team,
-    slime: socket.slime,
-    numUsers: playerSockets.length,
-    auth: socket.auth
-  };
-  if(broadcast){
-    socket.broadcast.emit(reason, payload);
-  }else{
-    socket.emit(reason, payload);
-  }
+var playerMessage = function (socket, reason, broadcast) {
+    var payload = {
+        team: socket.team,
+        slime: socket.slime,
+        numUsers: playerSockets.length,
+        auth: socket.auth
+    };
+    if (broadcast) {
+        socket.broadcast.emit(reason, payload);
+    } else {
+        socket.emit(reason, payload);
+    }
 };
 
-var setPlayer = function(socket){
-  console.log('adding new player');
-  socket.type = 'player';
-  assignSlime(socket);
-  playerMessage(socket, messageTypes.playerSet, false);
-  playerMessage(socket, messageTypes.playerJoined, true);
+var setPlayer = function (socket) {
+    console.log('adding new player');
+    socket.type = 'player';
+    assignSlime(socket);
+    playerMessage(socket, messageTypes.playerSet, false);
+    playerMessage(socket, messageTypes.playerJoined, true);
 };
 
-var processConnection = function(socket){
+var processConnection = function (socket) {
     //add users as they connected
-  //first 2 are players, rest observers
-  //player 1 is authoritative
-  console.log('a user connected');
-  if(playerSockets.length >= numTeams*teamSize){
-    console.log('players full, adding observer');
-    socket.type = 'observer';
-    socket.emit(messageTypes.observerSet);
-    socket.observerNum = observerSockets.length;
-    observerSockets[observerSockets.length] = socket;
-  }else{
-    setPlayer(socket);
-  }
+    //first 2 are players, rest observers
+    //player 1 is authoritative
+    console.log('a user connected');
+    if (playerSockets.length >= numTeams * teamSize) {
+        console.log('players full, adding observer');
+        socket.type = 'observer';
+        socket.emit(messageTypes.observerSet);
+        socket.observerNum = observerSockets.length;
+        observerSockets[observerSockets.length] = socket;
+    } else {
+        setPlayer(socket);
+    }
 };
 
-var setAuthoritative = function(socket){
-  socket.emit('set auth');
+var setAuthoritative = function (socket) {
+    socket.emit('set auth');
 };
 
 
-io.on('connection', function(socket){
-  processConnection(socket);
+io.on('connection', function (socket) {
+    processConnection(socket);
 
-  //check how to replace anonomous function with named but prevent immediate execution
-  socket.on('disconnect', function(){
-      //if player 1 leaves, authority passes to the observer replacing them
-      if(socket.type === 'player'){
-        playerMessage(socket, messageTypes.playerLeft, true);
-        removeSlime(socket);
-        if(observerSockets.length > 0){
-          setPlayer(observerSockets.pop());
-       }
-       if(socket.auth && playerSockets.length > 0){
-          setAuthoritative(playerSockets[0]);
-       }
-     }else{
-      observerSockets.splice(socket.observerNum, 1);
-    }
-    console.log('user disconnected');
-  });
+    //check how to replace anonomous function with named but prevent immediate execution
+    socket.on('disconnect', function () {
+        //if player 1 leaves, authority passes to the observer replacing them
+        if (socket.type === 'player') {
+            playerMessage(socket, messageTypes.playerLeft, true);
+            removeSlime(socket);
+            if (observerSockets.length > 0) {
+                setPlayer(observerSockets.pop());
+            }
+            if (socket.auth && playerSockets.length > 0) {
+                setAuthoritative(playerSockets[0]);
+            }
+        } else {
+            observerSockets.splice(socket.observerNum, 1);
+        }
+        console.log('user disconnected');
+    });
 
-  socket.on('send move', function(inputSample){
-    if(socket.type === 'player'){
-      console.log('send move called'+sendMoveCount);
-      sendMoveCount++;
-      var moveInfo = {team: socket.team, slime: socket.slime, inputSample: inputSample};
-      playerSockets[0].emit('receive move', moveInfo);
-    }
-  });
+    socket.on('send move', function (inputSample) {
+        if (socket.type === 'player') {
+            console.log('send move called' + sendMoveCount);
+            sendMoveCount++;
+            var moveInfo = {team: socket.team, slime: socket.slime, inputSample: inputSample};
+            playerSockets[0].emit('receive move', moveInfo);
+        }
+    });
 
-  socket.on('send state', function(data){
-    console.log('send state called '+sendStateCount);
-    sendStateCount++;
-    socket.broadcast.emit('receive state', data);
-    //look up how rooms work, use here
-    for(var o=0;o<observerSockets.length;o++){
-      socket.broadcast.emit('receive state', data);
-    }
-  });
+    socket.on('send state', function (data) {
+        console.log('send state called ' + sendStateCount);
+        sendStateCount++;
+        socket.broadcast.emit('receive state', data);
+        //look up how rooms work, use here
+        for (var o = 0; o < observerSockets.length; o++) {
+            socket.broadcast.emit('receive state', data);
+        }
+    });
 
-  socket.on('ping', function(data){
-    console.log('ping happened');
-    teams[data.teamNum].assignedSlimes[data.slimeNum].emit('ping', data);
-  });
+    socket.on('ping', function (data) {
+        console.log('ping happened');
+        teams[data.teamNum].assignedSlimes[data.slimeNum].emit('ping', data);
+    });
 
-  socket.on('pong', function(data){
-    console.log('pong happend');
-    playerSockets[0].emit('pong', data);
-  });
+    socket.on('pong', function (data) {
+        console.log('pong happend');
+        playerSockets[0].emit('pong', data);
+    });
 
-  socket.on('lagInfo', function(data){
-    teams[data.teamNum].assignedSlimes[data.slimeNum].emit('lagInfo', data);
-  });
+    socket.on('lagInfo', function (data) {
+        teams[data.teamNum].assignedSlimes[data.slimeNum].emit('lagInfo', data);
+    });
 });
