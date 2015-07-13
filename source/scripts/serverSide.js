@@ -4,131 +4,122 @@
 var mechanics = require('./mechanics.js');
 
 var socket;
-var queuedClientInput = [[null],[null]];//includes team and slime for each input
-var lastProcessedInputs = [[],[]];
+var queuedClientInput = [[],[]];//includes team and slime for each input
+var averageLag = [[],[]];
+
+var stateSendStamp = 0;
+var stateSendFrequency = 50;//1 every 50ms
+
+var serverStartTime;
+
+var serverToClientAdditionalLag = 0;
 
 var addSocketCallbacks = function(socket){
     socket.on('receive move', function (data) {
-        queuedClientInput[data.team][data.slime] = {inputSample: data.inputSample, inputNum: data.inputNum};
+        queuedClientInput[data.team][data.slime] = data.inputSample;
+    });
+    socket.on('pong', function(data){
+       receivePing(data);
     });
 };
 
-var demoInputs = [{inputSample: {up:true, down:false, left: false, right:false}, time: 0},
-    {inputSample: {up:false, down:false, left: true, right:false}, time: 500}
-];
-
-var demoElement = 0;
-//the time the server state was taken at
-//only matters relative input sample times
-var serverStateTimeStamp = 0;
-var simulatedTime = 0;
-var fakeDateNow = 510;
-
-//even more hacky doing step
-//call the physcis engine a bunch of times, without updating anthing else
-//batshiiiit
-//should write some kind of testcase for this
-//uses internal functions updatelogic and stage.updateTransform
-var p2ForceUpdate = function(){
-    var demoInputs = [{inputSample: {up:true, down:false, left: false, right:false}, time: 0},
-        {inputSample: {up:false, down:false, left: true, right:false}, time: 500}//,
-        //{inputSample: {up:false, down:true, left: false, right:false}, time: 1000},
-        //{inputSample: {up:false, down:false, left: false, right:true}, time: 1500}
-    ];
-
-    var demoElement = 0;
-    //the time the server state was taken at
-    //only matters relative input sample times
-    var serverStateTimeStamp = 0;
-    var simulatedTime = 0;
-    var fakeDateNow = 510;
-
-    while(serverStateTimeStamp + simulatedTime < fakeDateNow){
-        simulatedTime += 1000*(1.0/mechanics.game().time.desiredFps);
-        if(demoInputs[demoElement].time - serverStateTimeStamp < simulatedTime){
-            var inputToUse = demoInputs[demoElement];
-            demoElement++;
-            demoElement = demoElement%demoInputs.length;
-            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputToUse.inputSample);
-        }
-        mechanics.game().physics.p2.update();
-        //alternatively, pinched from main gameloop
-        //mechanics.game().updateLogic(1.0 / mechanics.game().time.desiredFps);
-        //mechanics.game().stage.updateTransform();
-    }
-};
-
-//doSteping works, but doesnt not force updates any faster then realtime
-//i.e. still relies on main update loop
-
-//not sure where to call this from, socket callback on receiving server state?
-var doStepping = function(){
-    //we need this to keep going until we've caught up with "now"
-    //doesn't seem to be a phaser (exposed) way to measure that
-    //so use date.now for the time being?
-    mechanics.game().enableStep();
-};
-
-var inputToUse = null;
-
-var steppingUpdate = function(){
-    inputToUse = null;
-    if(serverStateTimeStamp + simulatedTime < fakeDateNow){
-        simulatedTime += 1000*(1.0/mechanics.game().time.desiredFps);
-        if(demoInputs[demoElement].time - serverStateTimeStamp < simulatedTime){
-            inputToUse = demoInputs[demoElement];
-            demoElement++;
-            demoElement = demoElement%demoInputs.length;
-        }else{
-            inputToUse = null;
-        }
-        mechanics.game().step();
-    }else{
-        mechanics.game().disableStep();
-    }
-};
-
-
-var testUpdate = function(){
-    //this should really be in a preupdate function or something
-    if(mechanics.game().stepping) {
-        steppingUpdate();
-        if(inputToUse !== null) {
-            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputToUse.inputSample);
-        }
-    }else{
-        var io = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
-        if(io !== null) {
-            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, io);
-        }
-    }
-    mechanics.localUpdate(socket.playerInfo);
-};
+function showClock(){
+    //time test
+    console.log('game time date.now '+(Date.now()-serverStartTime));
+    console.log('date.now() '+Date.now());
+}
 
 var update = function(){
-    var samplesPresent = false;
-    for(var t=0;t<queuedClientInput.length; t++){
-        for(var s=0;s<queuedClientInput[t].length;s++){
-            var sample = queuedClientInput[t][s];
-            if(sample !== null){
-                samplesPresent = true;
-                mechanics.moveSlime(t, s, sample.inputSample);
-                lastProcessedInputs[t][s] = sample.inputNum;
-                queuedClientInput[t][s] = null;
+    var inputHappened = false;
+    for(var teamNum=0;teamNum<queuedClientInput.length; teamNum++){
+        for(var slimeNum=0;slimeNum<queuedClientInput[teamNum].length;slimeNum++){
+            var clientInputSample = queuedClientInput[teamNum][slimeNum];
+            if(clientInputSample !== null){
+                //todo: add rewind, so moveSlime takes place in past based on client latency
+                mechanics.moveSlime(teamNum, slimeNum, clientInputSample);
+                queuedClientInput[teamNum][slimeNum] = null;
+                inputHappened = true;
             }
         }
     }
-    var inputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
-    if(inputSample !== null) {
-        samplesPresent = true;
-        mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputSample);
+    var localInputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
+    if(localInputSample !== null) {
+        inputHappened = true;
+        mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, localInputSample);
     }
     mechanics.localUpdate(socket.playerInfo);
-    if(samplesPresent) {
+    stateSendStamp += mechanics.timeStep();
+    if(stateSendStamp > stateSendFrequency && inputHappened){
+        stateSendStamp %= stateSendFrequency;
         var packagedState = mechanics.packageState();
-        socket.emit('send state', {state: packagedState, lastProcessedInputs: lastProcessedInputs});
+        var inputTime = Date.now();
+        setTimeout(function(){
+            socket.emit('send state', {state: packagedState, timeStamp: inputTime});
+        }, serverToClientAdditionalLag);
     }
 };
+
+var packetTimes = [];
+var numPackets = 10;
+
+function sendPings(teamNum, slimeNum){
+    var interval = 200;
+    if(packetTimes[teamNum] == null) {
+        packetTimes[teamNum] = [];
+    }
+    packetTimes[teamNum][slimeNum] = [];
+    for(var i=0; i<numPackets; i++){
+        (function(){
+            setTimeout(function(){
+                socket.emit('ping', {teamNum: teamNum, slimeNum: slimeNum, start: Date.now()});
+            }, interval);
+        })();
+    }
+}
+
+function receivePing(data){
+    var pingData = {};
+    pingData.start = data.start;
+    pingData.end = Date.now();
+    pingData.lag = (pingData.end-pingData.start)/2;
+    console.log('indi lag '+pingData.lag);
+    var pingsForClient = packetTimes[data.teamNum][data.slimeNum];
+    pingsForClient.push(pingData.lag);
+    if(pingsForClient.length == numPackets){
+        var lag = calculateLag(pingsForClient) + serverToClientAdditionalLag;
+        averageLag[data.teamNum][data.slimeNum] = lag ;
+        socket.emit('lagInfo', {serverStartTime: serverStartTime, serverCurTime: Date.now(), lag: lag, teamNum: data.teamNum, slimeNum: data.slimeNum});
+        //set a time to recaculate?
+        //or have client calculate when they drift (based on extrapolation corrections)
+
+        //time test
+        console.log('game time date.now '+(Date.now()-serverStartTime));
+        console.log('date.now() '+Date.now());
+    }
+}
+
+function calculateLag(packetTimes){
+    /*var sum = 0;
+    for(var packetTime of packetTimes){
+        sum += packetTime.lag;
+    }
+    return sum/packetTimes.length;*/
+
+    var sumFunction = (sum, currentValue) => sum+currentValue;
+
+    function findStandardDeviation(){
+        var mean = packetTimes.reduce(sumFunction, 0)/packetTimes.length;
+        var sumElement = packetTimes.map((value)=>Math.pow(value - mean, 2));
+        var variance = sumElement.reduce(sumFunction, 0)/packetTimes.length;
+        return Math.sqrt(variance);
+    }
+    packetTimes.sort((a,b) => a > b);
+    var medianId = Math.floor(packetTimes.length/2);
+    var medianLag = packetTimes[medianId];
+    var standardDeviation = findStandardDeviation(packetTimes);
+    var filteredTimes = packetTimes.filter((value) => Math.abs(value-medianLag) < standardDeviation);
+    return filteredTimes.reduce(sumFunction, 0)/packetTimes.length;
+}
 
 module.exports = {
     registerSocket: function(socketRef){
@@ -136,12 +127,12 @@ module.exports = {
         addSocketCallbacks(socket);
     },
     startGame: function(){
+        document.getElementById('pingTest').onclick = function () {
+            sendPings(1, 0)
+        };
+        document.getElementById('showClock').onclick = showClock;
         mechanics.startGame(update);
+        serverStartTime = Date.now();
     },
-    testStepping: function() {
-        mechanics.startGame(testUpdate, doStepping);
-    },
-    testP2ForceUpdate: function() {
-        mechanics.startGame(update, p2ForceUpdate);
-    }
+    sendPings: sendPings
 };

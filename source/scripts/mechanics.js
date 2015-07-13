@@ -4,7 +4,7 @@
 
 var dat = require('dat-gui');
 
-var settings = {useMouse: true};
+var settings = {useMouse: false};
 
 var loadGUI = function(){
     var gui = new dat.GUI();
@@ -479,9 +479,7 @@ var sampleKeyboard = function () {
 
 var manualUpdateHack = function () {
     //this is an internal (and therefor unsupported function)
-    //long term, either hack client update into the game engine
-    //or, use p2 directly (which will prolably be done for server side anyway)
-    game.physics.update();
+    game.physics.p2.update();
 }
 
 var localUpdate = function (playerInfo) {
@@ -500,6 +498,12 @@ var localUpdate = function (playerInfo) {
     }
 };
 
+var printSlimeXY = function(team, slime){
+    var x = teams[team].slimes[slime].body.x;
+    var y = teams[team].slimes[slime].body.y;
+    console.log('team '+team+' slime '+slime+' x: '+x+' y: '+y);
+};
+
 module.exports = {
     localUpdate: localUpdate,
     packageState: packageState,
@@ -508,7 +512,9 @@ module.exports = {
     loadNewState: loadNewState,
     startGame: startGame,
     manualUpdateHack: manualUpdateHack,
-    game: function(){
-        return game;//return game;
+    onGoalReset: onGoalReset,
+    printSlimeXY: printSlimeXY,
+    timeStep: function(){
+        return 1000/game.time.desiredFps;
     }
 };

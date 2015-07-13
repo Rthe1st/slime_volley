@@ -19,7 +19,7 @@ app.get('/', function (req, res) {
   var options = {
     root: __dirname + '/../public/'
   };
-  
+
   res.sendFile('html/game.html', options);
 });
 
@@ -133,13 +133,12 @@ io.on('connection', function(socket){
     }
     console.log('user disconnected');
   });
-  
-  socket.on('send move', function(moveInfo){
+
+  socket.on('send move', function(inputSample){
     if(socket.type === 'player'){
       console.log('send move called'+sendMoveCount);
       sendMoveCount++;
-      moveInfo.team = socket.team;
-      moveInfo.slime = socket.slime;
+      var moveInfo = {team: socket.team, slime: socket.slime, inputSample: inputSample};
       playerSockets[0].emit('receive move', moveInfo);
     }
   });
@@ -147,14 +146,24 @@ io.on('connection', function(socket){
   socket.on('send state', function(data){
     console.log('send state called '+sendStateCount);
     sendStateCount++;
-    for(var i=0; i<playerSockets.length;i++){
-        socket.broadcast.emit('receive state', {state: data.state, lastProcessedInput: data.lastProcessedInputs[i]});
-    }
+    socket.broadcast.emit('receive state', data);
     //look up how rooms work, use here
     for(var o=0;o<observerSockets.length;o++){
-      socket.broadcast.emit('receive state', {state: data.state});      
+      socket.broadcast.emit('receive state', data);
     }
-    //customise so each client is only sent their own inputSample number
-    //socket.broadcast.emit('receive state', moveInfo);
+  });
+
+  socket.on('ping', function(data){
+    console.log('ping happened');
+    teams[data.teamNum].assignedSlimes[data.slimeNum].emit('ping', data);
+  });
+
+  socket.on('pong', function(data){
+    console.log('pong happend');
+    playerSockets[0].emit('pong', data);
+  });
+
+  socket.on('lagInfo', function(data){
+    teams[data.teamNum].assignedSlimes[data.slimeNum].emit('lagInfo', data);
   });
 });
