@@ -359,6 +359,21 @@ var startGame = function (update) {
         create: create,
         update: update
     }, false, false);
+    document.getElementById('pausePlay').onclick = function () {
+        if (!game.stepping) {
+            game.enableStep();
+        }else{
+            game.disableStep();
+        }
+    };
+    document.getElementById('showXY').onclick = function () {
+        printSlimeXY(0, 0);
+        printSlimeXY(1, 0);
+    };
+};
+
+var timeStep = function(){
+    return 1000/game.time.desiredFps;
 };
 
 var packageState = function () {
@@ -482,7 +497,7 @@ var manualUpdateHack = function () {
     game.physics.p2.update();
 }
 
-var localUpdate = function (playerInfo) {
+var localUpdate = function () {
     if (goalScored) {
         onGoalReset();
         goalScored = false;
@@ -504,6 +519,32 @@ var printSlimeXY = function(team, slime){
     console.log('team '+team+' slime '+slime+' x: '+x+' y: '+y);
 };
 
+//requires .timestamp, .inputSample, .slime, .team on inputElements
+var fastForward = function(initialGameTime, inputElements, localToGameTime, recordStateCallback){
+    inputElements.sort((a,b) => a.timeStamp - b.timeStamp);
+    var inputElement = 0;
+    var simulatedTime = 0;
+    console.log('time to make up in seconds: '+ (localToGameTime(Date.now()) - initialGameTime)/1000);
+    while(initialGameTime + simulatedTime < localToGameTime(Date.now())){
+        simulatedTime += timeStep();
+        var timeToMakeUp = localToGameTime(Date.now()) - (initialGameTime + simulatedTime);
+        //extrapolating more then 100 steps is crazy, just give up (100*1/60=1.6seconds)
+        if(timeToMakeUp > timeStep()*100){
+           // break;
+        }
+        if(inputElement < inputElements.length && initialGameTime + simulatedTime > inputElements[inputElement].timeStamp){
+            var inputToUse = inputElements[inputElement];
+            inputElement++;
+            moveSlime(inputToUse.team, inputToUse.slime, inputToUse.inputSample);
+            localUpdate();
+        }
+        if(recordStateCallback) {
+            recordStateCallback(packageState(), initialGameTime + simulatedTime);
+        }
+        manualUpdateHack();
+    }
+};
+
 module.exports = {
     localUpdate: localUpdate,
     packageState: packageState,
@@ -514,7 +555,5 @@ module.exports = {
     manualUpdateHack: manualUpdateHack,
     onGoalReset: onGoalReset,
     printSlimeXY: printSlimeXY,
-    timeStep: function(){
-        return 1000/game.time.desiredFps;
-    }
+    fastForward: fastForward
 };

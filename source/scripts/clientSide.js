@@ -28,6 +28,9 @@ var addSocketCallbacks = function(socket){
         oldServerData = serverData;
         serverData = data;
         serverStateDirty = true;
+        console.log('recieivng state at '+serverToGameTime(serverData.timeStamp));
+        serverData.asGameTime = serverToGameTime(serverData.timeStamp);
+        socket.emit('real ping', {sendTime: data.sendTime});
     });
 
     socket.on('ping', function(data){
@@ -38,8 +41,8 @@ var addSocketCallbacks = function(socket){
         //do some console logs to make sure game time is the same on both ends
         lagToServer = data.lag;
         serverStartTime = data.serverStartTime;
-        var timeOffset = Date.now() - lagToServer - data.serverCurTime;
-        localTimeWhenServerStart = data.serverStartTime + timeOffset;
+        var timeOffset = Date.now() - data.serverCurTime;
+        localTimeWhenServerStart = data.serverStartTime + timeOffset - lagToServer;
 
         console.log('game time date.now '+localToGameTime(Date.now()));
         console.log('date.now() '+Date.now());
@@ -65,28 +68,6 @@ var sendMove = function(inputSample){
     socket.emit('send move', inputSample);
 };
 
-var extrapolate = function(){
-    var inputElement = 0;
-    var simulatedTime = 0;
-    var serverTimeConverted = serverToGameTime(serverData.timeStamp);
-    console.log('time to make up in seconds: '+ (localToGameTime(Date.now()) - serverTimeConverted)/1000);
-    while(serverTimeConverted + simulatedTime < localToGameTime(Date.now())){
-        simulatedTime += mechanics.timeStep();
-        var timeToMakeUp = localToGameTime(Date.now()) - (serverTimeConverted + simulatedTime);
-        //extrapolating more then 100 steps is crazy, just give up (100*1/60=1.6seconds)
-        if(timeToMakeUp > mechanics.timeStep()*100){
-            break;
-        }
-        if(inputElement < unackInputSamples.length && serverTimeConverted + simulatedTime > unackInputSamples[inputElement].timeStamp){
-            var inputToUse = unackInputSamples[inputElement];
-            inputElement++;
-            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputToUse.inputSample);
-            mechanics.localUpdate(socket.playerInfo);
-        }
-        mechanics.manualUpdateHack();
-    }
-};
-
 var update = function(){
     //observers never need to sample input
     if(!socket.isPlayer && serverStateDirty){
@@ -99,18 +80,24 @@ var update = function(){
     if(serverStateDirty){
         mechanics.loadNewState(serverData.state);
         serverStateDirty = false;
+        var allAcked = true;
         for(var i=0;i<unackInputSamples.length;i++){
-            if(localToGameTime(unackInputSamples[i].timeStamp) > serverToGameTime(serverData.timeStamp)){
+            if(unackInputSamples[i].timeStamp > serverToGameTime(serverData.timeStamp)){
                 unackInputSamples = unackInputSamples.slice(i);
+                allAcked = false;
                 break;
             }
         }
-        extrapolate();
+        if(allAcked){
+            unackInputSamples = [];
+        }
+        //extrapolation
+        mechanics.fastForward(serverToGameTime(serverData.timeStamp), unackInputSamples, localToGameTime);
     }
     //now process newest local inputs
     var inputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
     if(inputSample !== null){
-        var samplePack = {inputSample: inputSample, timeStamp: localToGameTime(Date.now())};
+        var samplePack = {inputSample: inputSample, timeStamp: localToGameTime(Date.now()), slime: socket.playerInfo.slime, team: socket.playerInfo.team};
         unackInputSamples.push(samplePack);
         //server cant trust our timestamp, don't bother sending
         sendMove(inputSample);

@@ -158,6 +158,11 @@ io.on('connection', function (socket) {
         }
     });
 
+    socket.on('real ping', function (data) {
+        console.log('real ping happened');
+        playerSockets[0].emit('real ping', data);
+    });
+
     socket.on('ping', function (data) {
         console.log('ping happened');
         teams[data.teamNum].assignedSlimes[data.slimeNum].emit('ping', data);

@@ -45,7 +45,7 @@ socket.on(messageTypes.playerSet, function (data) {
 socket.on(messageTypes.playerJoined, function (data) {
     console.log('new player joined');
     if(socket.auth) {
-        gameNetwork.sendPings(data.team, data.slime);
+        gameNetwork.registerClient(data.slime, data.team);
     }
 });
 socket.on(messageTypes.playerLeft, function () {
