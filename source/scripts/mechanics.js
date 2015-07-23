@@ -2,12 +2,17 @@
 /* global Phaser, io*/
 'use strict';
 
-var dat = require('dat-gui');
+var gameClock = require('./gameClock.js');
 
 var settings = {useMouse: false};
 
+var gui;
+
+var storeGUI = function(tGui){
+    gui = tGui;
+};
+
 var loadGUI = function(){
-    var gui = new dat.GUI();
     gui.add(settings, 'useMouse');
     for (var teamNum = 0; teamNum < teams.length; teamNum++) {
         var team = teams[teamNum];
@@ -350,15 +355,10 @@ function create() {
         friction: 0.99
     });
     game.physics.p2.addContactMaterial(slime_ball_contact);
-    loadGUI();
+    postCreate();
 }
 
-var startGame = function (update) {
-    game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {
-        preload: preload,
-        create: create,
-        update: update
-    }, false, false);
+var postCreate = function(){
     document.getElementById('pausePlay').onclick = function () {
         if (!game.stepping) {
             game.enableStep();
@@ -370,6 +370,15 @@ var startGame = function (update) {
         printSlimeXY(0, 0);
         printSlimeXY(1, 0);
     };
+    loadGUI();
+};
+
+var startGame = function (update) {
+    game = new Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {
+        preload: preload,
+        create: create,
+        update: update
+    }, false, false);
 };
 
 var timeStep = function(){
@@ -490,12 +499,12 @@ var sampleKeyboard = function () {
     } else {
         return null;
     }
-}
+};
 
 var manualUpdateHack = function () {
     //this is an internal (and therefor unsupported function)
     game.physics.p2.update();
-}
+};
 
 var localUpdate = function () {
     if (goalScored) {
@@ -520,14 +529,14 @@ var printSlimeXY = function(team, slime){
 };
 
 //requires .timestamp, .inputSample, .slime, .team on inputElements
-var fastForward = function(initialGameTime, inputElements, localToGameTime, recordStateCallback){
+var fastForward = function(initialGameTime, inputElements, recordStateCallback){
     inputElements.sort((a,b) => a.timeStamp - b.timeStamp);
     var inputElement = 0;
     var simulatedTime = 0;
-    console.log('time to make up in seconds: '+ (localToGameTime(Date.now()) - initialGameTime)/1000);
-    while(initialGameTime + simulatedTime < localToGameTime(Date.now())){
+    console.log('time to make up in seconds: '+ (gameClock.now() - initialGameTime)/1000);
+    while(initialGameTime + simulatedTime < gameClock.now()){
         simulatedTime += timeStep();
-        var timeToMakeUp = localToGameTime(Date.now()) - (initialGameTime + simulatedTime);
+        var timeToMakeUp = gameClock.now() - (initialGameTime + simulatedTime);
         //extrapolating more then 100 steps is crazy, just give up (100*1/60=1.6seconds)
         if(timeToMakeUp > timeStep()*100){
            // break;
@@ -553,7 +562,7 @@ module.exports = {
     loadNewState: loadNewState,
     startGame: startGame,
     manualUpdateHack: manualUpdateHack,
-    onGoalReset: onGoalReset,
     printSlimeXY: printSlimeXY,
-    fastForward: fastForward
+    fastForward: fastForward,
+    storeGui: storeGUI
 };

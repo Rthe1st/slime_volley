@@ -33,7 +33,7 @@ var server = http.listen(80, function () {
     var host = server.address().address;
     var port = server.address().port;
 
-    console.log('Example app listening at http://%s:%s', host, port);
+    console.log('App listening at http://%s:%s', host, port);
 
 });
 
@@ -63,7 +63,7 @@ var assignSlime = function (socket) {
     }
 };
 var removeSlime = function (socket) {
-    //looping is lame, but sockets being reomoved at any index makes solution tricky
+    //looping is lame, but sockets being removed at any index makes solution tricky
     for (var i = 0; i < playerSockets.length; i++) {
         if (playerSockets[i].team === socket.team && playerSockets[i].slime === socket.slime) {
             playerSockets.splice(i, 1);
@@ -139,12 +139,13 @@ io.on('connection', function (socket) {
         console.log('user disconnected');
     });
 
-    socket.on('send move', function (inputSample) {
+    socket.on('send move', function (data) {
         if (socket.type === 'player') {
             console.log('send move called' + sendMoveCount);
             sendMoveCount++;
-            var moveInfo = {team: socket.team, slime: socket.slime, inputSample: inputSample};
-            playerSockets[0].emit('receive move', moveInfo);
+            data.team = socket.team;
+            data.slime = socket.slime;
+            playerSockets[0].emit('receive move', data);
         }
     });
 
@@ -163,17 +164,14 @@ io.on('connection', function (socket) {
         playerSockets[0].emit('real ping', data);
     });
 
-    socket.on('ping', function (data) {
-        console.log('ping happened');
-        teams[data.teamNum].assignedSlimes[data.slimeNum].emit('ping', data);
+    socket.on('manual sync', function(data){
+        data.team = socket.team;
+        data.slime = socket.slime;
+        playerSockets[0].emit('manual sync', data);
     });
 
-    socket.on('pong', function (data) {
-        console.log('pong happend');
-        playerSockets[0].emit('pong', data);
-    });
-
-    socket.on('lagInfo', function (data) {
-        teams[data.teamNum].assignedSlimes[data.slimeNum].emit('lagInfo', data);
+    socket.on('sync response', function (data) {
+        console.log('sync happened');
+        teams[data.teamNum].assignedSlimes[data.slimeNum].emit('sync response', data);
     });
 });

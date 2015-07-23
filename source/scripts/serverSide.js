@@ -3,20 +3,27 @@
 
 var mechanics = require('./mechanics.js');
 
+var gameClock = require('./gameClock.js');
+
 var socket;
 
 var clientInfo = {};
 
-var rewindLimit = 100;//in ms, the maximum amount of lag rewind accommodates
+var serverSettings = {rewindLimit: 100, toRewind: true, stateSendFrequency: 50, serverToClientAdditionalLag: 0, sendState: true};
 
 var timeOfLastStateSend = 0;
-var stateSendFrequency = 50;//1 every 50ms
-
-var serverStartTime;
-
-var serverToClientAdditionalLag = 0;
 
 var storedStates = [];
+
+var loadGUI = function (gui) {
+    var folder = gui.addFolder('Server settings');
+    folder.add(serverSettings, 'rewindLimit');
+    folder.add(serverSettings, 'toRewind');
+    folder.add(serverSettings, 'stateSendFrequency');
+    folder.add(serverSettings, 'serverToClientAdditionalLag');
+    folder.add(serverSettings, 'sendState');
+    mechanics.storeGui(gui);
+};
 
 var clientInfoKey = function (team, slime) {
     return team + ',' + slime;
@@ -24,31 +31,48 @@ var clientInfoKey = function (team, slime) {
 
 var addSocketCallbacks = function (socket) {
     socket.on('receive move', function (data) {
-        var client = clientInfo[clientInfoKey(data.team, data.slime)];
-        var samplePack = {
-            inputSample: data.inputSample,
-            timeStamp: localToGameTime(Date.now() - client.lag)
-        };
-        client.newSamplePacks.push(samplePack);
-    });
-    socket.on('pong', function (data) {
-        receivePing(data);
+        setTimeout(function () {
+            socket.emit('sync response', {
+                serverStartTime: gameClock.startTime(),
+                sentFromServerTime: Date.now(),
+                sentFromClientTime: data.sentFromClientTime,
+                wastedTime: 0,
+                teamNum: data.team,
+                slimeNum: data.slime
+            });
+            var client = clientInfo[clientInfoKey(data.team, data.slime)];
+            var samplePack = {
+                inputSample: data.inputSample,
+                timeStamp: data.timeStamp
+            };
+            //trusting client timestamp is a little dodgy
+            //but they can t fake increased lag anyway, up to rewind limit
+            //the cheat is worse the more fakeLag - actualLag
+            //this makes cheating easier by allowing that difference to be rewindlimit
+            //where as before it would of only been limited by the real lag
+            if (samplePack.timeStamp > gameClock.now()) {
+                samplePack.timeStamp = gameClock.now();
+            }
+            client.newSamplePacks.push(samplePack);
+        }, serverSettings.serverToClientAdditionalLag);
     });
     socket.on('real ping', function (data) {
-        console.log('real ping '+(Date.now()-data.sendTime)/2);
+        console.log('real ping on send state ' + (Date.now() - data.sendTime));
+    });
+
+    socket.on('manual sync', function (data) {
+        setTimeout(function () {
+            socket.emit('sync response', {
+                serverStartTime: gameClock.startTime(),
+                sentFromServerTime: Date.now(),
+                sentFromClientTime: data.sentFromClientTime,
+                wastedTime: 0,
+                teamNum: data.team,
+                slimeNum: data.slime
+            });
+        }, serverSettings.serverToClientAdditionalLag);
     });
 };
-
-function showClock() {
-    //time test
-    console.log('game time date.now ' + localToGameTime(Date.now()));
-    console.log('date.now() ' + Date.now());
-}
-
-function localToGameTime(localTimeStamp) {
-    return localTimeStamp - serverStartTime;
-}
-
 
 //only here for dev testing, may help simplify for testing lag stuff
 var notRewind = function () {
@@ -66,14 +90,13 @@ var notRewind = function () {
 
 var rewind = function () {
     var allClientsInputs = [];
-    var oldestAllowedTimeStamp = localToGameTime(Date.now() - rewindLimit);
     for (let clientKey of Object.keys(clientInfo)) {
         let client = clientInfo[clientKey];
         for (var newSamplePack of client.newSamplePacks) {
-            //if lag was too high to rewind, rewind as far back as possible
-            //it may be better to just discard inputs this old?
-            if (newSamplePack.timeStamp < oldestAllowedTimeStamp) {
-                newSamplePack.timeStamp = oldestAllowedTimeStamp;
+            if (newSamplePack.timeStamp < gameClock.now() - serverSettings.rewindLimit) {
+                //if lag was too high to rewind, rewind as far back as possible
+                //it may be better to just discard inputs this old?
+                newSamplePack.timeStamp = gameClock.now() - serverSettings.rewindLimit;
             }
             allClientsInputs.push({
                 inputSample: newSamplePack.inputSample,
@@ -87,17 +110,17 @@ var rewind = function () {
         allClientsInputs.sort((a, b) => a.timeStamp - b.timeStamp);
         var rewindState;
         for (let stateIndex = storedStates.length - 1; stateIndex >= 0; stateIndex--) {
-            if (localToGameTime(storedStates[stateIndex].timeStamp) < allClientsInputs[0].timeStamp) {
+            if (storedStates[stateIndex].timeStamp < allClientsInputs[0].timeStamp) {
                 rewindState = storedStates[stateIndex];
-                console.log('rewind to client[0] time diff: '+(allClientsInputs[0].timeStamp-localToGameTime(rewindState.timeStamp)));
                 mechanics.loadNewState(rewindState.state);
-                storedStates.splice(stateIndex+1);
+                storedStates.splice(stateIndex + 1);
                 break;
             }
         }
+        storedStates = storedStates.filter((state) => state.timeStamp > gameClock.now()-serverSettings.rewindLimit);
         for (let clientKey of Object.keys(clientInfo)) {
             let client = clientInfo[clientKey];
-            client.samplePacks = client.samplePacks.filter((pack) => pack.timeStamp > localToGameTime(rewindState.timeStamp));
+            client.samplePacks = client.samplePacks.filter((pack) => pack.timeStamp > rewindState.timeStamp);
             for (var oldSamplePack of client.samplePacks) {
                 allClientsInputs.push({
                     inputSample: oldSamplePack.inputSample,
@@ -110,124 +133,47 @@ var rewind = function () {
             client.newSamplePacks = [];
         }
         var saveFastForwardStates = function (state, gameTimeStamp) {
-            storedStates.push({state: state, timeStamp: gameToServerTime(gameTimeStamp)});
+            storedStates.push({state: state, timeStamp: gameTimeStamp});
         };
-        mechanics.fastForward(localToGameTime(rewindState.timeStamp), allClientsInputs, localToGameTime, saveFastForwardStates);
+        mechanics.fastForward(rewindState.timeStamp, allClientsInputs, saveFastForwardStates);
     }
     return allClientsInputs.length > 0;
 };
 
-function gameToServerTime(gameTimeStamp) {
-    return serverStartTime + gameTimeStamp;
-}
-
 var storeNewState = function (state, timeStamp) {
     storedStates.push({state: state, timeStamp: timeStamp});
-    if (storedStates.length > 0 && timeStamp - storedStates[storedStates.length - 1].timeStamp > rewindLimit) {
-        storedStates.shift();
-    }
 };
-
-var toRewind = true;
-var inputTime = Date.now();
 
 var update = function () {
     var inputHappened = false;
     //note: because the server will always have some lag to clients
     //it could arguably make sense to run the server behind time by ~lowest lag
     //to lessen impact of rewinds
-    if(toRewind){
+    if (serverSettings.toRewind) {
         inputHappened = rewind();
-    }else{
+    } else {
         inputHappened = notRewind();
     }
     var localInputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
-    var tooSoon = (Date.now() - inputTime) > 70;
-    if (localInputSample !== null && tooSoon) {
+    if (localInputSample !== null) {
         inputHappened = true;
         mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, localInputSample);
         var client = clientInfo[clientInfoKey(socket.playerInfo.team, socket.playerInfo.slime)];
-        client.samplePacks.push({inputSample: localInputSample, timeStamp: Date.now()});
+        client.samplePacks.push({inputSample: localInputSample, timeStamp: gameClock.now()});
     }
+    var inputTime = gameClock.now();
     mechanics.localUpdate(socket.playerInfo);
     var packagedState = mechanics.packageState();
     storeNewState(packagedState, inputTime);
-    if (inputHappened && tooSoon) {
-        inputTime = Date.now();
+    if (inputHappened && serverSettings.sendState) {
         mechanics.packageState();
-        timeOfLastStateSend = localToGameTime(Date.now());
+        timeOfLastStateSend = gameClock.now();
         setTimeout(function () {
             console.log('sending state');
             socket.emit('send state', {state: packagedState, timeStamp: inputTime, sendTime: Date.now()});
-        }, serverToClientAdditionalLag);
+        }, serverSettings.serverToClientAdditionalLag);
     }
 };
-
-var packetTimes = [];
-var numPackets = 10;
-
-function sendPings(teamNum, slimeNum) {
-    var interval = 200;
-    if (packetTimes[teamNum] == null) {
-        packetTimes[teamNum] = [];
-    }
-    packetTimes[teamNum][slimeNum] = [];
-    for (var i = 0; i < numPackets; i++) {
-        (function () {
-            setTimeout(function () {
-                socket.emit('ping', {teamNum: teamNum, slimeNum: slimeNum, start: Date.now()});
-            }, interval);
-        })();
-    }
-}
-
-function receivePing(data) {
-    var pingData = {};
-    pingData.start = data.start;
-    pingData.end = Date.now();
-    pingData.lag = (pingData.end - pingData.start) / 2;
-    console.log('individual lag ' + pingData.lag);
-    var pingsForClient = packetTimes[data.teamNum][data.slimeNum];
-    pingsForClient.push(pingData.lag);
-    if (pingsForClient.length == numPackets) {
-        var lag = calculateLag(pingsForClient) + serverToClientAdditionalLag;
-        clientInfo[clientInfoKey(data.teamNum, data.slimeNum)].lag = lag;
-        var serverCurTime = Date.now();
-        setTimeout(function () {
-            socket.emit('lagInfo', {
-                serverStartTime: serverStartTime,
-                serverCurTime: serverCurTime,
-                lag: lag,
-                teamNum: data.teamNum,
-                slimeNum: data.slimeNum
-            });
-        }, serverToClientAdditionalLag);
-        //set a time to recalculate?
-        //or have client calculate when they drift (based on extrapolation corrections)
-
-        console.log('game time date.now ' + (Date.now() - serverStartTime));
-        console.log('date.now() ' + Date.now());
-    }
-}
-
-function calculateLag(packetTimes) {
-
-    var sumFunction = (sum, currentValue) => sum + currentValue;
-
-    function findStandardDeviation() {
-        var mean = packetTimes.reduce(sumFunction, 0) / packetTimes.length;
-        var sumElement = packetTimes.map((value)=>Math.pow(value - mean, 2));
-        var variance = sumElement.reduce(sumFunction, 0) / packetTimes.length;
-        return Math.sqrt(variance);
-    }
-
-    packetTimes.sort((a, b) => a - b);
-    var medianId = Math.floor(packetTimes.length / 2);
-    var medianLag = packetTimes[medianId];
-    var standardDeviation = findStandardDeviation(packetTimes);
-    var filteredTimes = packetTimes.filter((value) => Math.abs(value - medianLag) < standardDeviation);
-    return filteredTimes.reduce(sumFunction, 0) / packetTimes.length;
-}
 
 module.exports = {
     registerSocket: function (socketRef) {
@@ -237,29 +183,24 @@ module.exports = {
         clientInfo[clientInfoKey(team, slime)] = {
             newSamplePacks: [],
             samplePacks: [],
-            lag: 0,
             slime: slime,
             team: team
         };
         addSocketCallbacks(socket);
     },
     startGame: function () {
-        document.getElementById('pingTest').onclick = function () {
-            sendPings(1, 0)
-        };
-        document.getElementById('showClock').onclick = showClock;
+        document.getElementById('showClock').onclick = gameClock.showClock;
         mechanics.startGame(update);
-        serverStartTime = Date.now();
-        storeNewState(mechanics.packageState(), Date.now());
+        gameClock.setUp(Date.now());
+        storeNewState(mechanics.packageState(), gameClock.now());
     },
     registerClient: function (slime, team) {
         clientInfo[clientInfoKey(team, slime)] = {
             newSamplePacks: [],
             samplePacks: [],
-            lag: 0,
             slime: slime,
             team: team
         };
-        sendPings(team, slime);
-    }
+    },
+    loadGUI: loadGUI
 };

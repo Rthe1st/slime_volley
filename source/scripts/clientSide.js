@@ -3,6 +3,8 @@
 
 var mechanics = require('./mechanics.js');
 
+var gameClock = require('./gameClock.js');
+
 var socket;
 
 var serverData;
@@ -10,62 +12,33 @@ var oldServerData;
 var serverStateDirty = false;
 var unackInputSamples = [];
 
-//before lag is computed, assume best possible
-//synced clocks and no lag
-var localTimeWhenServerStart;
-var lagToServer;
-var serverStartTime;
+var clientSettings = {toExtrapolate: true};
 
-function showClock(){
-    //time test
-    console.log('game time date.now '+localToGameTime(Date.now()));
-    console.log('date.now() '+Date.now());
-}
-
+var loadGUI = function(gui){
+    var folder = gui.addFolder('Client settings');
+    folder.add(clientSettings, 'toExtrapolate');
+    mechanics.storeGui(gui);
+};
 
 var addSocketCallbacks = function(socket){
     socket.on('receive state', function (data) {
         oldServerData = serverData;
         serverData = data;
         serverStateDirty = true;
-        console.log('recieivng state at '+serverToGameTime(serverData.timeStamp));
-        serverData.asGameTime = serverToGameTime(serverData.timeStamp);
         socket.emit('real ping', {sendTime: data.sendTime});
     });
-
-    socket.on('ping', function(data){
-        socket.emit('pong', data);
-    });
-
-    socket.on('lagInfo', function(data){
-        //do some console logs to make sure game time is the same on both ends
-        lagToServer = data.lag;
-        serverStartTime = data.serverStartTime;
-        var timeOffset = Date.now() - data.serverCurTime;
-        localTimeWhenServerStart = data.serverStartTime + timeOffset - lagToServer;
-
-        console.log('game time date.now '+localToGameTime(Date.now()));
-        console.log('date.now() '+Date.now());
-        console.log('lag to server '+lagToServer);
-        console.log('serverstarttime '+serverStartTime);
-        console.log('localtimewheserverstart '+localTimeWhenServerStart);
+    socket.on('sync response', function(data){
+        gameClock.syncReponse(data);
     });
 };
-
-function serverToGameTime(serverTimeStamp){
-    return serverTimeStamp - serverStartTime;
-}
-
-function localToGameTime(localTimeStamp){
-    return localTimeStamp - localTimeWhenServerStart;
-}
 
 var unregisterSocket = function(socket){
     socket.removeListener('receive state');
 };
 
-var sendMove = function(inputSample){
-    socket.emit('send move', inputSample);
+var sendMove = function(samplePack){
+    gameClock.piggyBackSync(samplePack);
+    socket.emit('send move', samplePack);
 };
 
 var update = function(){
@@ -82,7 +55,7 @@ var update = function(){
         serverStateDirty = false;
         var allAcked = true;
         for(var i=0;i<unackInputSamples.length;i++){
-            if(unackInputSamples[i].timeStamp > serverToGameTime(serverData.timeStamp)){
+            if(unackInputSamples[i].timeStamp > serverData.timeStamp){
                 unackInputSamples = unackInputSamples.slice(i);
                 allAcked = false;
                 break;
@@ -92,15 +65,16 @@ var update = function(){
             unackInputSamples = [];
         }
         //extrapolation
-        mechanics.fastForward(serverToGameTime(serverData.timeStamp), unackInputSamples, localToGameTime);
+        if(clientSettings.toExtrapolate) {
+            mechanics.fastForward(serverData.timeStamp, unackInputSamples);
+        }
     }
     //now process newest local inputs
     var inputSample = mechanics.sampleInput(socket.playerInfo.team, socket.playerInfo.slime);
     if(inputSample !== null){
-        var samplePack = {inputSample: inputSample, timeStamp: localToGameTime(Date.now()), slime: socket.playerInfo.slime, team: socket.playerInfo.team};
+        var samplePack = {inputSample: inputSample, timeStamp: gameClock.now(), slime: socket.playerInfo.slime, team: socket.playerInfo.team};
         unackInputSamples.push(samplePack);
-        //server cant trust our timestamp, don't bother sending
-        sendMove(inputSample);
+        sendMove({inputSample: samplePack.inputSample, timeStamp: samplePack.timeStamp});
         mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputSample);
     }
     mechanics.localUpdate(socket.playerInfo);
@@ -113,13 +87,13 @@ module.exports = {
     },
     unregisterSocket: unregisterSocket,
     startGame: function(){
-        document.getElementById('showClock').onclick = showClock;
+        document.getElementById('showClock').onclick = gameClock.showClock;
+        document.getElementById('pingTest').onclick = function () {
+            gameClock.manualSync(socket, true);
+        };
         mechanics.startGame(update);
-        //at this point we havnt established how much lag there is
-        //so assume best case, no lag and we started when the server did
-        //(really server should announce serverstart time (and lag) when it allows us to register)
-        localTimeWhenServerStart = Date.now();
-        lagToServer = 0;
-        serverStartTime = Date.now();
-    }
+        gameClock.setUp();
+        gameClock.manualSync(socket);
+    },
+    loadGUI: loadGUI
 };

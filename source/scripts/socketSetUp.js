@@ -4,6 +4,8 @@
 
 var socket = io.connect();
 
+var dat = require('dat-gui');
+
 var clientSide = require('./clientSide.js');
 var serverSide = require('./serverSide.js');
 
@@ -40,6 +42,8 @@ socket.on(messageTypes.playerSet, function (data) {
     }
     gameNetwork.registerSocket(socket);
     gameNetwork.startGame();
+    var gui = new dat.GUI();
+    gameNetwork.loadGUI(gui);
 });
 
 socket.on(messageTypes.playerJoined, function (data) {
