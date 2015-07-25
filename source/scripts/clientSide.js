@@ -12,11 +12,12 @@ var oldServerData;
 var serverStateDirty = false;
 var unackInputSamples = [];
 
-var clientSettings = {toExtrapolate: true};
+var clientSettings = {toExtrapolate: false, useServerInputs: false};
 
 var loadGUI = function(gui){
     var folder = gui.addFolder('Client settings');
     folder.add(clientSettings, 'toExtrapolate');
+    folder.add(clientSettings, 'useServerInputs');
     mechanics.storeGui(gui);
 };
 
@@ -64,9 +65,12 @@ var update = function(){
         if(allAcked){
             unackInputSamples = [];
         }
-        //extrapolation
         if(clientSettings.toExtrapolate) {
-            mechanics.fastForward(serverData.timeStamp, unackInputSamples);
+            var withServerInputs = unackInputSamples;
+            if(clientSettings.useServerInputs) {
+                withServerInputs.concat(serverData.inputSamples);
+            }
+            mechanics.fastForward(serverData.timeStamp, withServerInputs);
         }
     }
     //now process newest local inputs

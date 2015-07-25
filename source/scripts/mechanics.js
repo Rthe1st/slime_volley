@@ -550,6 +550,7 @@ var printSlimeXY = function(team, slime){
 
 //requires .timestamp, .inputSample, .slime, .team on inputElements
 var fastForward = function(initialGameTime, inputElements, recordStateCallback){
+    //this sort could be expensive, if slow, good bottleneck candidate
     inputElements.sort((a,b) => a.timeStamp - b.timeStamp);
     var inputElement = 0;
     var simulatedTime = 0;

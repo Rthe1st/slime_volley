@@ -9,7 +9,14 @@ var socket;
 
 var clientInfo = {};
 
-var serverSettings = {rewindLimit: 100, toRewind: true, stateSendFrequency: 50, serverToClientAdditionalLag: 0, sendState: true};
+var serverSettings = {
+    rewindLimit: 100,
+    toRewind: false,
+    stateSendFrequency: 50,
+    serverToClientAdditionalLag: 0,
+    sendState: true,
+    sendInputs: false
+};
 
 var timeOfLastStateSend = 0;
 
@@ -22,6 +29,7 @@ var loadGUI = function (gui) {
     folder.add(serverSettings, 'stateSendFrequency');
     folder.add(serverSettings, 'serverToClientAdditionalLag');
     folder.add(serverSettings, 'sendState');
+    folder.add(serverSettings, 'sendInputs');
     mechanics.storeGui(gui);
 };
 
@@ -88,50 +96,48 @@ var notRewind = function () {
     return inputHappened;
 };
 
-var rewind = function () {
+var sampleTypes = Object.freeze({newPacks: 'newSamplePacks', oldPacks: 'samplePacks'});
+
+var gatherSamplePacks = function (sampleType, mutate, excludedKeys, rewindState) {
     var allClientsInputs = [];
     for (let clientKey of Object.keys(clientInfo)) {
+        if (excludedKeys[clientKey]) {
+            next();
+        }
         let client = clientInfo[clientKey];
-        for (var newSamplePack of client.newSamplePacks) {
-            if (newSamplePack.timeStamp < gameClock.now() - serverSettings.rewindLimit) {
-                //if lag was too high to rewind, rewind as far back as possible
-                //it may be better to just discard inputs this old?
-                newSamplePack.timeStamp = gameClock.now() - serverSettings.rewindLimit;
+        if (sampleType === sampleTypes.oldPacks && mutate) {
+            client.samplePacks = client.samplePacks.filter((pack) => pack.timeStamp > rewindState.timeStamp);
+        }
+        for (var samplePack of client[sampleType]) {
+            if (sampleType === sampleTypes.newPacks && mutate) {
+                if(rewindState == 'undefined'){
+                    console.log('excuse for breakpint');
+                }
+                samplePack.timeStamp = Math.max(samplePack.timeStamp, rewindState.timeStamp);
             }
             allClientsInputs.push({
-                inputSample: newSamplePack.inputSample,
-                timeStamp: newSamplePack.timeStamp,
+                inputSample: samplePack.inputSample,
+                timeStamp: samplePack.timeStamp,
                 slime: client.slime,
                 team: client.team
             });
         }
-    }
-    if (allClientsInputs.length > 0) {
-        allClientsInputs.sort((a, b) => a.timeStamp - b.timeStamp);
-        var rewindState;
-        for (let stateIndex = storedStates.length - 1; stateIndex >= 0; stateIndex--) {
-            if (storedStates[stateIndex].timeStamp < allClientsInputs[0].timeStamp) {
-                rewindState = storedStates[stateIndex];
-                mechanics.loadNewState(rewindState.state);
-                storedStates.splice(stateIndex + 1);
-                break;
-            }
-        }
-        storedStates = storedStates.filter((state) => state.timeStamp > gameClock.now()-serverSettings.rewindLimit);
-        for (let clientKey of Object.keys(clientInfo)) {
-            let client = clientInfo[clientKey];
-            client.samplePacks = client.samplePacks.filter((pack) => pack.timeStamp > rewindState.timeStamp);
-            for (var oldSamplePack of client.samplePacks) {
-                allClientsInputs.push({
-                    inputSample: oldSamplePack.inputSample,
-                    timeStamp: oldSamplePack.timeStamp,
-                    slime: client.slime,
-                    team: client.team
-                });
-            }
+        if (sampleType === sampleTypes.oldPacks && mutate) {
             client.samplePacks = client.samplePacks.concat(client.newSamplePacks);
             client.newSamplePacks = [];
         }
+    }
+    return allClientsInputs;
+};
+
+var rewind = function () {
+    storedStates = storedStates.filter((state) => state.timeStamp > gameClock.now() - serverSettings.rewindLimit);
+    storedStates.sort((a,b) => a.timeStamp - b.timeStamp);//safeside
+    var rewindState = storedStates[0];
+    var allClientsInputs = gatherSamplePacks(sampleTypes.newPacks, true, {}, rewindState);
+    if (allClientsInputs.length > 0) {
+        mechanics.loadNewState(rewindState.state);
+        allClientsInputs.concat(gatherSamplePacks(sampleTypes.oldPacks, true, {}, rewindState));
         var saveFastForwardStates = function (state, gameTimeStamp) {
             storedStates.push({state: state, timeStamp: gameTimeStamp});
         };
@@ -165,12 +171,36 @@ var update = function () {
     mechanics.localUpdate(socket.playerInfo);
     var packagedState = mechanics.packageState();
     storeNewState(packagedState, inputTime);
-    if (inputHappened && serverSettings.sendState) {
-        mechanics.packageState();
+    //send state needs to be per client (as does input happened)
+    if(serverSettings.sendInputs){
+        //hack for only 2 players (where one is server)
+        inputHappened = localInputSample;
+    }
+    if(inputHappened && serverSettings.sendState) {
         timeOfLastStateSend = gameClock.now();
+        var sendState;
+        //temp hack for 1 client
+        //need to loop through and do for all players individually
+        var statePacket;
+        if(serverSettings.sendInputs){
+            statePacket = {};
+            statePacket.state = storedStates[0].state;
+            statePacket.timeStamp = storedStates[0].timeStamp;
+            var excludedKeys = {};
+            excludedKeys[clientInfoKey(0, 1)] = true;
+            statePacket.inputsToClient = gatherSamplePacks(sampleTypes.newPacks, false, excludedKeys, sendState);
+            statePacket.inputsToClient.concat(gatherSamplePacks(sampleTypes.oldPacks, false, excludedKeys, sendState));
+        }else{
+            statePacket = {
+                state: packagedState,
+                timeStamp: gameClock.now(),
+                sendTime: Date.now()
+            }
+        }
         setTimeout(function () {
             console.log('sending state');
-            socket.emit('send state', {state: packagedState, timeStamp: inputTime, sendTime: Date.now()});
+            statePacket.sendTime = Date.now();
+            socket.emit('send state', statePacket);
         }, serverSettings.serverToClientAdditionalLag);
     }
 };
