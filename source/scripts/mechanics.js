@@ -4,7 +4,7 @@
 
 var gameClock = require('./gameClock.js');
 
-var settings = {useMouse: false};
+var settings = {useMouse: true};
 
 var gui;
 
@@ -24,6 +24,7 @@ var loadGUI = function(){
             slimeFolder.add(slime, 'breakingRate');
             slimeFolder.add(slime, 'moveForce');
             slimeFolder.add(slime.body, 'mass');
+            slimeFolder.add(slime, 'moveTimeOut');
         }
     }
     for (var ballNum=0; ballNum < balls.length; ballNum++) {
@@ -136,30 +137,62 @@ class Ball extends Phaser.Sprite {
         this.body.setZeroForce();
         this.owner = null;
     }
+
+    update() {
+        limitVelocity(this.body.velocity, this.maxSpeed);
+    }
+}
+
+function limitVelocity(velocity, maxSpeed){
+    var magnitude = magnitudeXY(velocity);
+    var normalised = normaliseXY(velocity);
+    if (magnitude > maxSpeed) {
+        velocity.x = maxSpeed * normalised.x;
+        velocity.y = maxSpeed * normalised.y;
+    }
 }
 
 class Slime extends Phaser.Sprite {
     constructor(x, y, color) {
         super(game, x, y);
-        this.maxSpeed = 200;
-        this.moveForce = 2000;
-        this.breakingRate = 0.3;
-        var size = 28;
+        this.maxSpeed = 500;
+        this.moveForce = 5000;
+        this.breakingRate = 0;
+        var size = 54;
         this.name = name;
         //not sure what this does, if the drawCircle and body circle are given the same values
         //this is needed to make collision match up (maybe scales drawing to body?)
-        this.scale.set(2);
+
+        this.moveTimeOut = 0;//in ms
+        this.lastMoveTime = 0;
 
         //drawing
         var graphic = game.add.graphics();
         graphic.beginFill(color);
         graphic.drawCircle(0, 0, size);
+        graphic.endFill();
         this.addChild(graphic);
+
+        this.moveTimerArc = game.add.graphics();
+        var slime = this;
+        this.moveTimerArc.update = function(){
+            this.clear();
+            this.beginFill(0xffffff);
+            var percentageOfTimePast = ((gameClock.now() - slime.lastMoveTime)/slime.moveTimeOut);
+            percentageOfTimePast = Math.min(1, percentageOfTimePast);
+            var startAngle = -Math.PI/2;
+            var maxAngle = 2*Math.PI+startAngle;
+            //why the fuckity fukcwit is this needed
+            this.drawCircle(0,0, 0);
+            this.arc(0, 0, (size/2)*0.5, startAngle, maxAngle*percentageOfTimePast);
+            this.endFill();
+        };
+       this.addChild(this.moveTimerArc);
 
         //  Create our physics body.
         game.physics.p2.enable(this);
 
-        this.body.setCircle(size);
+        this.body.setCircle(size/2);
 
         this.body.mass = 10;
 
@@ -171,11 +204,25 @@ class Slime extends Phaser.Sprite {
         game.add.existing(this);
     }
 
+    pack(){
+        var data = packageBody(this.body);
+        data.lastMoveTime = this.lastMoveTime;
+        return data;
+    }
+
+    unPack(data){
+        loadBody(data, this.body);
+        data.lastMoveTime = this.lastMoveTime;
+    }
+
     move(inputSample) {
-        if (settings.useMouse) {
-            this.mouseMove(inputSample);
-        } else {
-            this.keyboardMove(inputSample);
+        if(gameClock.now() - this.moveTimeOut > this.lastMoveTime) {
+            this.lastMoveTime = gameClock.now();
+            if (settings.useMouse) {
+                this.mouseMove(inputSample);
+            } else {
+                this.keyboardMove(inputSample);
+            }
         }
     }
 
@@ -193,17 +240,10 @@ class Slime extends Phaser.Sprite {
 
         function move(direction) {
             //-1 because force axes are inverted vs velocity axes?!?
-            force[direction.axis] = 2000 * -1 * direction.scaling;
+            force[direction.axis] = slime.moveForce * -1 * direction.scaling;
             var directionOppsesVelocity = (velocity[direction.axis] * direction.scaling) < 0;
             if (directionOppsesVelocity) {
-                velocity[direction.axis] /= 3;
-            }
-        }
-        function limitVelocity(axis){
-            if (velocity[axis] > slime.maxSpeed) {
-                velocity[axis] = slime.maxSpeed;
-            } else if (velocity[axis] < -slime.maxSpeed) {
-                velocity[axis] = -slime.maxSpeed;
+                velocity[direction.axis] *= slime.breakingRate;
             }
         }
         if (inputSample.down) {
@@ -216,11 +256,6 @@ class Slime extends Phaser.Sprite {
         } else if (inputSample.right) {
             move(directions.RIGHT);
         }
-        //force isn't applied until after update, so its effect cannot be limited here
-        //so real speed can be maxSpeed + force effect
-        //could move limit to a post physics function to fix
-        limitVelocity('x');
-        limitVelocity('y');
         this.body.applyForce([force.x, force.y], this.body.x, this.body.y);
     }
 
@@ -233,28 +268,20 @@ class Slime extends Phaser.Sprite {
 
         function move(axis) {
             //-1 because force axes are inverted vs velocity axes?!?
-            force[axis] = 2000 * -1 * mouseDirection[axis];
+            force[axis] = slime.moveForce * -1 * mouseDirection[axis];
             var directionOpposesVelocity = (velocity[axis] * mouseDirection[axis]) < 0;
             if (directionOpposesVelocity) {
-                velocity[axis] /= 3;
-            }
-        }
-
-        function limit() {
-            var magnitude = magnitudeXY(velocity);
-            var normalised = normaliseXY(velocity);
-            if (magnitude > slime.maxSpeed) {
-                velocity.x = slime.maxSpeed * normalised.x;
-                velocity.y = slime.maxSpeed * normalised.y;
+                velocity[axis] *= slime.breakingRate;
             }
         }
         move('x');
         move('y');
-        //force isn't applied until after update, so its effect cannot be limited here
-        //so real speed can be maxSpeed + force effect
-        //could move limit to a post physics function to fix
-        limit();
         this.body.applyForce([force.x, force.y], this.body.x, this.body.y);
+    }
+
+    update(){
+        this.moveTimerArc.update();
+        limitVelocity(this.body.velocity, this.maxSpeed);
     }
 }
 
@@ -385,23 +412,23 @@ var timeStep = function(){
     return 1000/game.time.desiredFps;
 };
 
-var packageState = function () {
-    function packageBody(body) {
-        //rotation and rotation velocity needed as well
-        //(as soon as players/balls are non-symentrical/non-circles)
-        var bodyData = {};
-        bodyData.position = {x: body.x, y: body.y};
-        bodyData.velocity = {x: body.velocity.x, y: body.velocity.y};
-        //force is reset at the end of every frame
-        //but we still need to send it because the state is sent mid-frame
-        //so force hasnt been applied yet
-        bodyData.force = {x: body.force.x, y: body.force.y};
-        //isnt currently needed as we apply force to center of body
-        //but applyForce method used in moveslime can potentialy effect it
-        bodyData.angularForce = body.angularForce;
-        return bodyData;
-    }
+function packageBody(body) {
+    //rotation and rotation velocity needed as well
+    //(as soon as players/balls are non-symentrical/non-circles)
+    var bodyData = {};
+    bodyData.position = {x: body.x, y: body.y};
+    bodyData.velocity = {x: body.velocity.x, y: body.velocity.y};
+    //force is reset at the end of every frame
+    //but we still need to send it because the state is sent mid-frame
+    //so force hasnt been applied yet
+    bodyData.force = {x: body.force.x, y: body.force.y};
+    //isnt currently needed as we apply force to center of body
+    //but applyForce method used in moveslime can potentialy effect it
+    bodyData.angularForce = body.angularForce;
+    return bodyData;
+}
 
+var packageState = function () {
     var state = {};
     state.teams = [];
     for (var i = 0; i < teams.length; i++) {
@@ -409,8 +436,8 @@ var packageState = function () {
         state.teams[i].score = teams[i].statCard.score;
         state.teams[i].slimes = [];
         for (var slimeNum = 0; slimeNum < teams[i].slimes.length; slimeNum++) {
-            var localSlime = teams[i].slimes[slimeNum];
-            state.teams[i].slimes[slimeNum] = packageBody(localSlime.body);
+            state.teams[i].slimes[slimeNum] = teams[i].slimes[slimeNum].pack();
+
         }
     }
     state.balls = [];
@@ -420,25 +447,24 @@ var packageState = function () {
     return state;
 };
 
-var loadNewState = function (state) {
-    function loadBody(bodyData, body) {
-        //rotation and rotation velocity needed as well
-        //(as soon as players/balls are non-symentrical/non-circles)
-        body.x = bodyData.position.x;
-        body.y = bodyData.position.y;
-        body.velocity.x = bodyData.velocity.x;
-        body.velocity.y = bodyData.velocity.y;
-        body.force.x = bodyData.force.x;
-        body.force.y = bodyData.force.y;
-        body.angularForce = bodyData.angularForce;
-    }
+function loadBody(bodyData, body) {
+    //rotation and rotation velocity needed as well
+    //(as soon as players/balls are non-symentrical/non-circles)
+    body.x = bodyData.position.x;
+    body.y = bodyData.position.y;
+    body.velocity.x = bodyData.velocity.x;
+    body.velocity.y = bodyData.velocity.y;
+    body.force.x = bodyData.force.x;
+    body.force.y = bodyData.force.y;
+    body.angularForce = bodyData.angularForce;
+}
 
+var loadNewState = function (state) {
     for (var i = 0; i < teams.length; i++) {
         teams[i].statCard.setScore(state.teams[i].score);
         for (var slimeNum = 0; slimeNum < teams[i].slimes.length; slimeNum++) {
-            var localSlime = teams[i].slimes[slimeNum];
             var stateSlime = state.teams[i].slimes[slimeNum];
-            loadBody(stateSlime, localSlime.body);
+            teams[i].slimes[slimeNum].unPack(stateSlime);
         }
     }
     for (var g = 0; g < balls.length; g++) {
@@ -452,14 +478,17 @@ var moveSlime = function (teamNum, slimeNum, inputSample) {
 
 var magnitudeXY = function (raw) {
     return Math.sqrt(Math.pow(raw.x, 2) + Math.pow(raw.y, 2));
-}
+};
 
 var normaliseXY = function (raw) {
     var magnitude = magnitudeXY(raw);
     return {x: raw.x / magnitude, y: raw.y / magnitude};
-}
+};
 
 var sampleInput = function (teamNum, slimeNum) {
+    if(gameClock.now() - teams[teamNum].slimes[slimeNum].moveTimeOut < teams[teamNum].slimes[slimeNum].lastMoveTime) {
+        return null;
+    }
     if (settings.useMouse) {
         return sampleMouse(teamNum, slimeNum);
     } else {
@@ -510,15 +539,6 @@ var localUpdate = function () {
     if (goalScored) {
         onGoalReset();
         goalScored = false;
-    }
-
-    for (var ball of balls) {
-        var magnitude = magnitudeXY(ball.body.velocity);
-        var normalised = normaliseXY(ball.body.velocity);
-        if (magnitude > ball.maxSpeed) {
-            ball.body.velocity.x = ball.maxSpeed * normalised.x;
-            ball.body.velocity.y = ball.maxSpeed * normalised.y;
-        }
     }
 };
 
