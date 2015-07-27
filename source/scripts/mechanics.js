@@ -8,6 +8,8 @@ var settings = {useMouse: true};
 
 var gui;
 
+var debug = true;
+
 var storeGUI = function(tGui){
     gui = tGui;
 };
@@ -59,15 +61,16 @@ class Goal extends Phaser.Sprite {
         super(game, x, y);
         this.name = 'goal';
 
+        game.physics.p2.enable(this, debug);
+        this.body.static = true;
+        this.body.setRectangle(INITIAL_GOAL_SIZE.WIDTH, INITIAL_GOAL_SIZE.HEIGHT, 0, 0, 0);
+
         var graphic = game.add.graphics();
         graphic.beginFill(color);
         graphic.drawRect(-INITIAL_GOAL_SIZE.WIDTH / 2, -INITIAL_GOAL_SIZE.HEIGHT / 2, INITIAL_GOAL_SIZE.WIDTH, INITIAL_GOAL_SIZE.HEIGHT);
+        graphic.endFill();
         this.addChild(graphic);
 
-        game.physics.p2.enable(this);
-        this.body.static = true;
-        this.body.setRectangle(INITIAL_GOAL_SIZE.WIDTH, INITIAL_GOAL_SIZE.HEIGHT, 0, 0, 0);
-        this.body.debug = true;
         game.add.existing(this);
     }
 }
@@ -82,14 +85,8 @@ class Ball extends Phaser.Sprite {
         //this is needed to make collision match up (maybe scales drawing to body?)
         this.scale.set(2);
 
-        //drawing
-        var graphic = game.add.graphics();
-        graphic.beginFill(color);
-        graphic.drawCircle(0, 0, size);
-        this.addChild(graphic);
-
         //  Create our physics body.
-        game.physics.p2.enable(this);
+        game.physics.p2.enable(this, debug);
 
         this.body.setCircle(size);
 
@@ -99,9 +96,14 @@ class Ball extends Phaser.Sprite {
 
         this.body.setMaterial(material.ball);
 
-        this.body.debug = true;
-
         this.body.onEndContact.add(this.endContact, this);
+
+        //drawing
+        var graphic = game.add.graphics();
+        graphic.beginFill(color);
+        graphic.drawCircle(0, 0, size);
+        graphic.endFill();
+        this.addChild(graphic);
 
         game.add.existing(this);
     }
@@ -166,6 +168,17 @@ class Slime extends Phaser.Sprite {
         this.moveTimeOut = 0;//in ms
         this.lastMoveTime = 0;
 
+        //  Create our physics body.
+        game.physics.p2.enable(this, debug);
+
+        this.body.setCircle(size/2);
+
+        this.body.mass = 10;
+
+        this.body.collideWorldBounds = true;
+
+        this.body.setMaterial(material.slime);
+
         //drawing
         var graphic = game.add.graphics();
         graphic.beginFill(color);
@@ -187,20 +200,8 @@ class Slime extends Phaser.Sprite {
             this.arc(0, 0, (size/2)*0.5, startAngle, maxAngle*percentageOfTimePast);
             this.endFill();
         };
-       this.addChild(this.moveTimerArc);
+        this.addChild(this.moveTimerArc);
 
-        //  Create our physics body.
-        game.physics.p2.enable(this);
-
-        this.body.setCircle(size/2);
-
-        this.body.mass = 10;
-
-        this.body.collideWorldBounds = true;
-
-        this.body.setMaterial(material.slime);
-
-        this.body.debug = true;
         game.add.existing(this);
     }
 
@@ -500,8 +501,7 @@ var sampleMouse = function (teamNum, slimeNum) {
     var slime = teams[teamNum].slimes[slimeNum];
     var relativePoint = {x: slime.body.x, y: slime.body.y};
     var mousePointer = game.input.mousePointer;
-    var mouse = game.input.mouse;
-    if (mousePointer.isDown && mouse.button === Phaser.Mouse.LEFT_BUTTON) {
+    if (mousePointer.leftButton.isDown) {
         var inputSample = new Float64Array(2);
         //extract a normalised direction from player to mouse
         var rawDiff = {x: mousePointer.worldX - relativePoint.x, y: mousePointer.worldY - relativePoint.y};
