@@ -1,5 +1,5 @@
 /*jslint browser: true, browserify: true, devel: true*/
-/* global Phaser, io*/
+/* global io*/
 'use strict';
 
 var socket = io.connect();

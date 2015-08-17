@@ -1,6 +1,8 @@
 /*jslint browser: true, browserify: true, devel: true*/
-/* global Phaser, io*/
+
 'use strict';
+
+var Phaser = require('Phaser');
 
 var gameClock = require('./gameClock.js');
 
