@@ -1,9 +1,13 @@
 /*jslint browserify: true, devel: true */
 'use strict';
 
-var mechanics = require('./mechanics.js');
+import {Mechanics, storeGUI} from './gamePlay/mechanics.js';
+import GameClock from './GameClock.js';
 
-var gameClock = require('./gameClock.js');
+//doesnt work becuase of Phaser.spirte extention in class files
+/*import * as phaserFramework from 'Phaser';
+
+var Phaser = phaserFramework.Phaser;*/
 
 var socket;
 
@@ -18,11 +22,14 @@ var serverSettings = {
     sendInputs: false
 };
 
+var gameClock;
+var mechanics;
+
 var timeOfLastStateSend = 0;
 
 var storedStates = [];
 
-var loadGUI = function (gui) {
+export function loadGUI(gui) {
     var folder = gui.addFolder('Server settings');
     folder.add(serverSettings, 'rewindLimit');
     folder.add(serverSettings, 'toRewind');
@@ -30,8 +37,8 @@ var loadGUI = function (gui) {
     folder.add(serverSettings, 'serverToClientAdditionalLag');
     folder.add(serverSettings, 'sendState');
     folder.add(serverSettings, 'sendInputs');
-    mechanics.storeGui(gui);
-};
+    storeGUI(gui);
+}
 
 var clientInfoKey = function (team, slime) {
     return team + ',' + slime;
@@ -110,7 +117,7 @@ var gatherSamplePacks = function (sampleType, mutate, excludedKeys, rewindState)
         }
         for (var samplePack of client[sampleType]) {
             if (sampleType === sampleTypes.newPacks && mutate) {
-                if(rewindState == 'undefined'){
+                if (rewindState == 'undefined') {
                     console.log('excuse for breakpint');
                 }
                 samplePack.timeStamp = Math.max(samplePack.timeStamp, rewindState.timeStamp);
@@ -132,7 +139,7 @@ var gatherSamplePacks = function (sampleType, mutate, excludedKeys, rewindState)
 
 var rewind = function () {
     storedStates = storedStates.filter((state) => state.timeStamp > gameClock.now() - serverSettings.rewindLimit);
-    storedStates.sort((a,b) => a.timeStamp - b.timeStamp);//safeside
+    storedStates.sort((a, b) => a.timeStamp - b.timeStamp);//safeside
     var rewindState = storedStates[0];
     var allClientsInputs = gatherSamplePacks(sampleTypes.newPacks, true, {}, rewindState);
     if (allClientsInputs.length > 0) {
@@ -172,17 +179,18 @@ var update = function () {
     var packagedState = mechanics.packageState();
     storeNewState(packagedState, inputTime);
     //send state needs to be per client (as does input happened)
-    if(serverSettings.sendInputs){
+    if (serverSettings.sendInputs) {
         //hack for only 2 players (where one is server)
         inputHappened = localInputSample;
     }
-    if(inputHappened && serverSettings.sendState) {
+    if (inputHappened && serverSettings.sendState) {
         timeOfLastStateSend = gameClock.now();
-        var sendState;
         //temp hack for 1 client
         //need to loop through and do for all players individually
+        //(because they may of all receives differet updates thus far?
+        var sendState = storedStates[0];
         var statePacket;
-        if(serverSettings.sendInputs){
+        if (serverSettings.sendInputs) {
             statePacket = {};
             statePacket.state = storedStates[0].state;
             statePacket.timeStamp = storedStates[0].timeStamp;
@@ -190,7 +198,7 @@ var update = function () {
             excludedKeys[clientInfoKey(0, 1)] = true;
             statePacket.inputsToClient = gatherSamplePacks(sampleTypes.newPacks, false, excludedKeys, sendState);
             statePacket.inputsToClient.concat(gatherSamplePacks(sampleTypes.oldPacks, false, excludedKeys, sendState));
-        }else{
+        } else {
             statePacket = {
                 state: packagedState,
                 timeStamp: gameClock.now(),
@@ -205,32 +213,33 @@ var update = function () {
     }
 };
 
-module.exports = {
-    registerSocket: function (socketRef) {
-        socket = socketRef;
-        var slime = socket.playerInfo.slime;
-        var team = socket.playerInfo.team;
-        clientInfo[clientInfoKey(team, slime)] = {
-            newSamplePacks: [],
-            samplePacks: [],
-            slime: slime,
-            team: team
-        };
-        addSocketCallbacks(socket);
-    },
-    startGame: function () {
-        document.getElementById('showClock').onclick = gameClock.showClock;
-        mechanics.startGame(update);
-        gameClock.setUp(Date.now());
+export function registerSocket(socketRef) {
+    socket = socketRef;
+    var slime = socket.playerInfo.slime;
+    var team = socket.playerInfo.team;
+    clientInfo[clientInfoKey(team, slime)] = {
+        newSamplePacks: [],
+        samplePacks: [],
+        slime: slime,
+        team: team
+    };
+    addSocketCallbacks(socket);
+}
+export function startGame() {
+    gameClock = new GameClock(Date.now());
+    document.getElementById('showClock').onclick = gameClock.showClock;
+    let thing = Phaser;
+    mechanics = new Mechanics(Phaser, gameClock, true);
+    let postCreate = function(){
         storeNewState(mechanics.packageState(), gameClock.now());
-    },
-    registerClient: function (slime, team) {
-        clientInfo[clientInfoKey(team, slime)] = {
-            newSamplePacks: [],
-            samplePacks: [],
-            slime: slime,
-            team: team
-        };
-    },
-    loadGUI: loadGUI
-};
+    }
+    mechanics.startGame(update);
+}
+export function registerClient(slime, team) {
+    clientInfo[clientInfoKey(team, slime)] = {
+        newSamplePacks: [],
+        samplePacks: [],
+        slime: slime,
+        team: team
+    };
+}

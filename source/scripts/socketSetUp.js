@@ -4,10 +4,10 @@
 
 var socket = io.connect();
 
-var dat = require('dat-gui');
+import * as dat from 'dat-gui';
 
-var clientSide = require('./clientSide.js');
-var serverSide = require('./serverSide.js');
+import * as clientSide from './clientSide.js';
+import * as serverSide from './serverSide.js';
 
 var gameNetwork;
 
