@@ -10,8 +10,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # Spin up a "host box" for use with the Docker provider
   # and then provision it with Docker
-  config.vm.box = "hashicorp/precise64"
+  config.vm.box = "ubuntu/trusty64"
   config.vm.provision "docker"
 
-  config.vm.network :forwarded_port, host: 80, guest: 80, host_ip: "192.168.0.*"
+  #host_ip: "192.168.0.*" cant be used because it screws with docker install
+  config.vm.network "forwarded_port", host: 80, guest: 80
 end
+
+
