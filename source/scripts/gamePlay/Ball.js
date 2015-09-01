@@ -13,9 +13,6 @@ export default class extends Phaser.Sprite {
         this.owner = null;//the team that last touched the ball
         var size = 12;
         this.maxSpeed = 400;
-        //not sure what this does, if the drawCircle and body circle are given the same values
-        //this is needed to make collision match up (maybe scales drawing to body?)
-        this.scale.set(2);
 
         //  Create our physics body.
         this.game.physics.p2.enable(this, settings.debug);
@@ -30,12 +27,20 @@ export default class extends Phaser.Sprite {
 
         this.body.onEndContact.add(this.endContact, this);
 
-        //drawing
-        var graphic = this.game.add.graphics();
-        graphic.beginFill(color);
-        graphic.drawCircle(0, 0, size);
-        graphic.endFill();
-        this.addChild(graphic);
+
+        if(settings.frontEnd) {
+
+            //not sure what this does, if the drawCircle and body circle are given the same values
+            //this is needed to make collision match up (maybe scales drawing to body?)
+            this.scale.set(2);
+
+            //drawing
+            var graphic = this.game.add.graphics();
+            graphic.beginFill(color);
+            graphic.drawCircle(0, 0, size);
+            graphic.endFill();
+            this.addChild(graphic);
+        }
 
         this.game.add.existing(this);
     }

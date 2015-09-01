@@ -106,7 +106,7 @@ export function startGame() {
     document.getElementById('pingTest').onclick = function () {
         GameClock.manualSync(socket, true);
     };
-    mechanics = new Mechanics(Phaser, gameClock, true);
+    mechanics = new Mechanics(Phaser, gameClock.now, true);
     mechanics.startGame(update);
     GameClock.manualSync(socket);
 }

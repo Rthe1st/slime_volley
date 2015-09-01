@@ -6,15 +6,15 @@ import Slime from './Slime.js';
 import Team from './Team.js';
 import {normaliseXY} from './GameMaths.js';
 
-export let settings = {useMouse: true, initialGoalSize: {height:100, width: 50}, debug: true};
+export let settings = {useMouse: true, initialGoalSize: {height: 100, width: 50}, debug: true, frontEnd: true};
 
 var gui;
 
-export class Mechanics{
-    constructor(Phaser, gameClock, allowGUI){
+export class Mechanics {
+    constructor(Phaser, nowFunction, allowGUI) {
         this.Phaser = Phaser;
-        this.gameClock = gameClock;
-        this.allowGUI = allowGUI;
+        this.now = nowFunction;
+        this.allowGUI = settings.frontEnd = allowGUI;
     }
 
     create() {
@@ -24,13 +24,17 @@ export class Mechanics{
         this.balls = [];
 
         this.game.physics.startSystem(this.Phaser.Physics.P2JS);
-        var keyCodes = {w: 87, a: 65, s: 83, d: 68};
-        this.controls = {
-            up: this.game.input.keyboard.addKey(keyCodes.w),
-            left: this.game.input.keyboard.addKey(keyCodes.a),
-            down: this.game.input.keyboard.addKey(keyCodes.s),
-            right: this.game.input.keyboard.addKey(keyCodes.d)
-        };
+
+        if (settings.frontEnd) {
+
+            var keyCodes = {w: 87, a: 65, s: 83, d: 68};
+            this.controls = {
+                up: this.game.input.keyboard.addKey(keyCodes.w),
+                left: this.game.input.keyboard.addKey(keyCodes.a),
+                down: this.game.input.keyboard.addKey(keyCodes.s),
+                right: this.game.input.keyboard.addKey(keyCodes.d)
+            };
+        }
 
         this.material = {
             slime: new this.Phaser.Physics.P2.Material('SLIME'),
@@ -62,48 +66,52 @@ export class Mechanics{
         this.game.physics.p2.addContactMaterial(slime_ball_contact);
         //this. is required because we have to manualy .bind create() to stop 'this' being phaser
         this.internalPostCreate();
-        if(this.externalPostCreate != undefined) {
+        if (this.externalPostCreate != undefined) {
             this.externalPostCreate();
         }
     }
 
-    internalPostCreate(){
-        document.getElementById('pausePlay').onclick = function () {
-            if (!this.game.stepping) {
-                this.game.enableStep();
-            }else{
-                this.game.disableStep();
+    internalPostCreate() {
+        if (settings.frontEnd) {
+            document.getElementById('pausePlay').onclick = function () {
+                if (!this.game.stepping) {
+                    this.game.enableStep();
+                } else {
+                    this.game.disableStep();
+                }
+            };
+            document.getElementById('step').onclick = function () {
+                this.game.step();
+            };
+            document.getElementById('showXY').onclick = function () {
+                printSlimeXY(0, 0);
+                printSlimeXY(1, 0);
+            };
+            //take a param to do this
+            if (this.allowGUI) {
+                loadGUI(this.teams, this.balls);
             }
-        };
-        document.getElementById('step').onclick = function(){
-            this.game.step();
-        };
-        document.getElementById('showXY').onclick = function () {
-            printSlimeXY(0, 0);
-            printSlimeXY(1, 0);
-        };
-        //take a param to do this
-        if(this.allowGUI){
-            loadGUI(this.teams, this.balls);
         }
     }
 
     startGame(update, tExternalPostCreate) {
         this.externalPostCreate = tExternalPostCreate;
         //prevent create having this set to Phaser
-        let boundCreate = this.create.bind(this);
         this.game = new this.Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {
-            create: boundCreate,
+            create: this.create.bind(this),
             update: update
         }, false, false);
     }
 
-    timeStep(){
-        return 1000/this.game.time.desiredFps;
+    timeStep() {
+        return 1000 / this.game.time.desiredFps;
     }
 
     sampleInput(teamNum, slimeNum) {
-        if(this.gameClock.now() - this.teams[teamNum].slimes[slimeNum].moveTimeOut < this.teams[teamNum].slimes[slimeNum].lastMoveTime) {
+        if(!settings.frontEnd){
+            return;
+        }
+        if (this.now() - this.teams[teamNum].slimes[slimeNum].moveTimeOut < this.teams[teamNum].slimes[slimeNum].lastMoveTime) {
             return null;
         }
         if (settings.useMouse) {
@@ -124,8 +132,8 @@ export class Mechanics{
             var normalised = normaliseXY(rawDiff);
             inputSample[0] = normalised.x;
             inputSample[1] = normalised.y;
-            inputSample[0] = Math.round(normalised.x * 100)/100;
-            inputSample[1] = Math.round(normalised.y * 100)/100;
+            inputSample[0] = Math.round(normalised.x * 100) / 100;
+            inputSample[1] = Math.round(normalised.y * 100) / 100;
             return inputSample;
         } else {
             return null;
@@ -159,33 +167,33 @@ export class Mechanics{
         }
     }
 
-    printSlimeXY(team, slime){
+    printSlimeXY(team, slime) {
         var x = this.teams[team].slimes[slime].body.x;
         var y = this.teams[team].slimes[slime].body.y;
-        console.log('team '+team+' slime '+slime+' x: '+x+' y: '+y);
+        console.log('team ' + team + ' slime ' + slime + ' x: ' + x + ' y: ' + y);
     }
 
     //requires .timestamp, .inputSample, .slime, .team on inputElements
-    fastForward(initialGameTime, inputElements, recordStateCallback){
+    fastForward(initialGameTime, inputElements, recordStateCallback) {
         //this sort could be expensive, if slow, good bottleneck candidate
-        inputElements.sort((a,b) => a.timeStamp - b.timeStamp);
+        inputElements.sort((a, b) => a.timeStamp - b.timeStamp);
         var inputElement = 0;
         var simulatedTime = 0;
-        console.log('time to make up in seconds: '+ (this.gameClock.now() - initialGameTime)/1000);
-        while(initialGameTime + simulatedTime < this.gameClock.now()){
+        console.log('time to make up in seconds: ' + (this.now() - initialGameTime) / 1000);
+        while (initialGameTime + simulatedTime < this.now()) {
             simulatedTime += timeStep();
-            var timeToMakeUp = this.gameClock.now() - (initialGameTime + simulatedTime);
+            var timeToMakeUp = this.now() - (initialGameTime + simulatedTime);
             //extrapolating more then 100 steps is crazy, just give up (100*1/60=1.6seconds)
-            if(timeToMakeUp > timeStep()*100){
+            if (timeToMakeUp > timeStep() * 100) {
                 // break;
             }
-            if(inputElement < inputElements.length && initialGameTime + simulatedTime > inputElements[inputElement].timeStamp){
+            if (inputElement < inputElements.length && initialGameTime + simulatedTime > inputElements[inputElement].timeStamp) {
                 var inputToUse = inputElements[inputElement];
                 inputElement++;
                 moveSlime(inputToUse.team, inputToUse.slime, inputToUse.inputSample);
                 localUpdate();
             }
-            if(recordStateCallback) {
+            if (recordStateCallback) {
                 recordStateCallback(packageState(), initialGameTime + simulatedTime);
             }
             manualUpdateHack();
@@ -255,24 +263,24 @@ export class Mechanics{
         this.teams[teamNum].slimes[slimeNum].move(inputSample);
     }
 
-    isPendingStep(){
+    isPendingStep() {
         return this.game.pendingStep;
     }
 
 }
 
-export function storeGUI(tGui){
+export function storeGUI(tGui) {
     gui = tGui;
 }
 
-var loadGUI = function(teams, balls){
+var loadGUI = function (teams, balls) {
     gui.add(settings, 'useMouse');
     for (var teamNum = 0; teamNum < teams.length; teamNum++) {
         var team = teams[teamNum];
-        var teamFolder = gui.addFolder('Team '+teamNum);
+        var teamFolder = gui.addFolder('Team ' + teamNum);
         for (var slimeNum = 0; slimeNum < team.slimes.length; slimeNum++) {
             var slime = team.slimes[slimeNum];
-            var slimeFolder = teamFolder.addFolder('Slime '+slimeNum);
+            var slimeFolder = teamFolder.addFolder('Slime ' + slimeNum);
             slimeFolder.add(slime, 'maxSpeed');
             slimeFolder.add(slime, 'breakingRate');
             slimeFolder.add(slime, 'moveForce');
@@ -280,9 +288,9 @@ var loadGUI = function(teams, balls){
             slimeFolder.add(slime, 'moveTimeOut');
         }
     }
-    for (var ballNum=0; ballNum < balls.length; ballNum++) {
+    for (var ballNum = 0; ballNum < balls.length; ballNum++) {
         var ball = balls[ballNum];
-        var ballFolder = gui.addFolder('Ball '+ballNum);
+        var ballFolder = gui.addFolder('Ball ' + ballNum);
         ballFolder.add(ball, 'maxSpeed');
         ballFolder.add(ball.body, 'mass');
     }

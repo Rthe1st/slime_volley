@@ -227,13 +227,12 @@ export function registerSocket(socketRef) {
 }
 export function startGame() {
     gameClock = new GameClock(Date.now());
-    document.getElementById('showClock').onclick = gameClock.showClock;
-    let thing = Phaser;
-    mechanics = new Mechanics(Phaser, gameClock, true);
+    document.getElementById('showClock').onclick = gameClock.showClock.bind(gameClock);
+    mechanics = new Mechanics(Phaser, gameClock.now.bind(gameClock), true);
     let postCreate = function(){
         storeNewState(mechanics.packageState(), gameClock.now());
-    }
-    mechanics.startGame(update);
+    };
+    mechanics.startGame(update, postCreate);
 }
 export function registerClient(slime, team) {
     clientInfo[clientInfoKey(team, slime)] = {

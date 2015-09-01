@@ -56,7 +56,7 @@ export default class GameClock {
     }
 
     showClock() {
-        console.log('game time now ' + now());
+        console.log('game time now ' + this.now());
         console.log('date.now() ' + Date.now());
     }
 }

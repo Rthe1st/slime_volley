@@ -31,28 +31,32 @@ export default class extends Phaser.Sprite {
 
         this.body.setMaterial(this.mechanics.material.slime);
 
-        //drawing
-        var graphic = this.game.add.graphics();
-        graphic.beginFill(color);
-        graphic.drawCircle(0, 0, size);
-        graphic.endFill();
-        this.addChild(graphic);
+        if(settings.frontEnd) {
 
-        this.moveTimerArc = this.game.add.graphics();
-        var slime = this;
-        this.moveTimerArc.update = function(){
-            this.clear();
-            this.beginFill(0xffffff);
-            var percentageOfTimePast = ((slime.mechanics.gameClock.now() - slime.lastMoveTime)/slime.moveTimeOut);
-            percentageOfTimePast = Math.min(1, percentageOfTimePast);
-            var startAngle = -Math.PI/2;
-            var maxAngle = 2*Math.PI+startAngle;
-            //why the fuckity fukcwit is this needed
-            this.drawCircle(0,0, 0);
-            this.arc(0, 0, (size/2)*0.5, startAngle, maxAngle*percentageOfTimePast);
-            this.endFill();
-        };
-        this.addChild(this.moveTimerArc);
+            //drawing
+            var graphic = this.game.add.graphics();
+            graphic.beginFill(color);
+            graphic.drawCircle(0, 0, size);
+            graphic.endFill();
+            this.addChild(graphic);
+
+            this.moveTimerArc = this.game.add.graphics();
+            var slime = this;
+            this.moveTimerArc.update = function () {
+                this.clear();
+                this.beginFill(0xffffff);
+                var percentageOfTimePast = ((slime.mechanics.now() - slime.lastMoveTime) / slime.moveTimeOut);
+                percentageOfTimePast = Math.min(1, percentageOfTimePast);
+                var startAngle = -Math.PI / 2;
+                var maxAngle = 2 * Math.PI + startAngle;
+                //why the fuckity fukcwit is this needed
+                this.drawCircle(0, 0, 0);
+                this.arc(0, 0, (size / 2) * 0.5, startAngle, maxAngle * percentageOfTimePast);
+                this.endFill();
+            };
+            this.addChild(this.moveTimerArc);
+
+        }
 
         this.game.add.existing(this);
     }
@@ -69,8 +73,8 @@ export default class extends Phaser.Sprite {
     }
 
     move(inputSample) {
-        if(this.mechanics.gameClock.now() - this.moveTimeOut > this.lastMoveTime) {
-            this.lastMoveTime = this.mechanics.gameClock.now();
+        if(this.mechanics.now() - this.moveTimeOut > this.lastMoveTime) {
+            this.lastMoveTime = this.mechanics.now();
             if (settings.useMouse) {
                 this.mouseMove(inputSample);
             } else {
@@ -133,7 +137,9 @@ export default class extends Phaser.Sprite {
     }
 
     update(){
-        this.moveTimerArc.update();
+        if(settings.frontEnd) {
+            this.moveTimerArc.update();
+        }
         limitVelocity(this.body.velocity, this.maxSpeed);
     }
 }

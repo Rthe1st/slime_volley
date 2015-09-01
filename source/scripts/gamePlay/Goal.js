@@ -12,11 +12,14 @@ export default class extends Phaser.Sprite {
         this.body.static = true;
         this.body.setRectangle(initialSize.width, initialSize.height, 0, 0, 0);
 
-        var graphic = this.game.add.graphics();
-        graphic.beginFill(color);
-        graphic.drawRect(-initialSize.width / 2, -initialSize.height / 2, initialSize.width, initialSize.height);
-        graphic.endFill();
-        this.addChild(graphic);
+        if(settings.frontEnd){
+            var graphic = this.game.add.graphics();
+            graphic.beginFill(color);
+            graphic.drawRect(-initialSize.width / 2, -initialSize.height / 2, initialSize.width, initialSize.height);
+            graphic.endFill();
+            this.addChild(graphic);
+
+        }
 
         this.game.add.existing(this);
     }
