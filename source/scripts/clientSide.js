@@ -29,7 +29,7 @@ export function loadGUI(gui) {
 }
 
 var addSocketCallbacks = function (socket) {
-    socket.on('receive state', function (data) {
+    socket.on('send state', function (data) {
         oldServerData = serverData;
         serverData = data;
         serverStateDirty = true;
@@ -41,7 +41,7 @@ var addSocketCallbacks = function (socket) {
 };
 
 export function unregisterSocket(socket) {
-    socket.removeListener('receive state');
+    socket.removeListener('send state');
 }
 
 var sendMove = function (samplePack) {
