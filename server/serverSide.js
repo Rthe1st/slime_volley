@@ -1,8 +1,8 @@
 /*jslint browserify: true, devel: true */
 'use strict';
 
+//var hackedPhaser = require('hackedPhaser');
 import hackedPhaser from 'hackedPhaser';
-
 import SocketTeams from './SocketTeams.js';
 
 import {Mechanics, storeGUI} from './../source/scripts/gamePlay/mechanics.js';
@@ -83,8 +83,13 @@ var addSocketCallbacks = function (socket) {
 //only here for dev testing, may help simplify for testing lag stuff
 var notRewind = function () {
     var inputHappened;
+    console.log('num team: '+socketTeams.teams.length);
     for (let team of socketTeams.teams) {
+        console.log('assignedSlimes length: '+team.assignedSlimes.length);
         for (let socket of team.assignedSlimes) {
+            console.log('soclket '+socket);
+            console.log('newSamplePacks: '+socket.newSamplePacks);
+            console.log('newSamplePacks: '+socket.newSamplePacks.length);
             for (var newSamplePack of socket.newSamplePacks) {
                 mechanics.moveSlime(socket.team, socket.slime, newSamplePack.inputSample);
                 inputHappened = true;
@@ -151,6 +156,7 @@ var storeNewState = function (state, timeStamp) {
 };
 
 var update = function () {
+    console.log('update');
     var inputHappened = false;
     //note: because the server will always have some lag to clients
     //it could arguably make sense to run the server behind time by ~lowest lag
@@ -158,13 +164,16 @@ var update = function () {
     if (serverSettings.toRewind) {
         inputHappened = rewind();
     } else {
+        console.log('not rewind');
         inputHappened = notRewind();
     }
+    if(inputHappened){
+        console.log('input happended');
+    }
     var inputTime = gameClock.now();
-    mechanics.localUpdate(socket.playerInfo);
     var packagedState = mechanics.packageState();
     storeNewState(packagedState, inputTime);
-    //inputHappened could be per client (as does input happened)
+    //inputHappened could be per client
     if (inputHappened && serverSettings.sendState) {
         timeOfLastStateSend = gameClock.now();
         //temp hack for 1 client
@@ -197,6 +206,7 @@ var update = function () {
                     }
                 }
             }else{
+                console.log('sending state');
                 io.sockets.emit('send state', statePacket);
             }
         }, serverSettings.serverToClientAdditionalLag);
@@ -207,8 +217,7 @@ export function startGame(tIo) {
     io = tIo;
     socketTeams = new SocketTeams();
     gameClock = new GameClock(Date.now());
-    document.getElementById('showClock').onclick = gameClock.showClock.bind(gameClock);
-    mechanics = new Mechanics(hackerPhaser, gameClock.now.bind(gameClock), false);
+    mechanics = new Mechanics(hackedPhaser, gameClock.now.bind(gameClock), false, false);
     let postCreate = function () {
         storeNewState(mechanics.packageState(), gameClock.now());
     };

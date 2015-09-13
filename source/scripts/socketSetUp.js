@@ -8,7 +8,7 @@ import * as dat from 'dat-gui';
 
 import * as clientSide from './clientSide.js';
 
-var messageTypes = {playerSet: 'set player', playerJoined: 'player joined', playerLeft: 'player left', observerSet: 'observer set'};
+import messageTypes from './MessageTypes.js';
 
 socket.on(messageTypes.observerSet, function () {
     console.log('players full, you\'ve been placed in the observer queue');

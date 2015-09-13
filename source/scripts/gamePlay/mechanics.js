@@ -6,15 +6,16 @@ import Slime from './Slime.js';
 import Team from './Team.js';
 import {normaliseXY} from './GameMaths.js';
 
-export let settings = {useMouse: true, initialGoalSize: {height: 100, width: 50}, debug: true, frontEnd: true};
+export let settings = {useMouse: true, initialGoalSize: {height: 100, width: 50}, debug: false, frontEnd: true};
 
 var gui;
 
 export class Mechanics {
-    constructor(Phaser, nowFunction, allowGUI) {
+    constructor(Phaser, nowFunction, allowGUI, debug) {
         this.Phaser = Phaser;
         this.now = nowFunction;
         this.allowGUI = settings.frontEnd = allowGUI;
+        settings.debug = debug;
     }
 
     create() {
@@ -84,9 +85,9 @@ export class Mechanics {
                 this.game.step();
             };
             document.getElementById('showXY').onclick = function () {
-                printSlimeXY(0, 0);
-                printSlimeXY(1, 0);
-            };
+                this.printSlimeXY(0, 0);
+                this.printSlimeXY(1, 0);
+            }.bind(this);
             //take a param to do this
             if (this.allowGUI) {
                 loadGUI(this.teams, this.balls);
@@ -247,15 +248,15 @@ export class Mechanics {
     }
 
     loadNewState(state) {
-        for (var i = 0; i < teams.length; i++) {
+        for (var i = 0; i < state.teams.length; i++) {
             this.teams[i].statCard.setScore(state.teams[i].score);
-            for (var slimeNum = 0; slimeNum < this.teams[i].slimes.length; slimeNum++) {
+            for (var slimeNum = 0; slimeNum < state.teams[i].slimes.length; slimeNum++) {
                 var stateSlime = state.teams[i].slimes[slimeNum];
                 this.teams[i].slimes[slimeNum].unPack(stateSlime);
             }
         }
         for (var g = 0; g < this.balls.length; g++) {
-            loadBody(state.balls[g], this.balls[g].body);
+            Mechanics.loadBody(state.balls[g], this.balls[g].body);
         }
     }
 

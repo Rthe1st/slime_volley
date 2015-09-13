@@ -39,7 +39,7 @@ export default class GameClock {
 
     syncReponse(data) {
         //this could try to piggy back on serversend state, by accounting for wasted time
-        clientSideSync(data.sentFromServerTime, data.sentFromClientTime, data.wastedTime, data.serverStartTime);
+        this.clientSideSync(data.sentFromServerTime, data.sentFromClientTime, data.wastedTime, data.serverStartTime);
     }
 
     //wastedTime could be how long before the server got round to repeating the message

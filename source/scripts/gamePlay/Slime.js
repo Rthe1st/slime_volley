@@ -13,7 +13,7 @@ export default class extends Phaser.Sprite {
         this.moveForce = 5000;
         this.breakingRate = 0;
         var size = 54;
-        this.name = name;
+        this.name = 'slime';
         //not sure what this does, if the drawCircle and body circle are given the same values
         //this is needed to make collision match up (maybe scales drawing to body?)
 
@@ -53,12 +53,14 @@ export default class extends Phaser.Sprite {
                 this.drawCircle(0, 0, 0);
                 this.arc(0, 0, (size / 2) * 0.5, startAngle, maxAngle * percentageOfTimePast);
                 this.endFill();
+                slime.addChild(this);
+
             };
-            this.addChild(this.moveTimerArc);
 
         }
 
         this.game.add.existing(this);
+
     }
 
     pack(){
@@ -68,7 +70,7 @@ export default class extends Phaser.Sprite {
     }
 
     unPack(data){
-        this.mechanics.loadBody(data, this.body);
+        Mechanics.loadBody(data, this.body);
         this.lastMoveTime = data.lastMoveTime;
     }
 

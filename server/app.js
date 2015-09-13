@@ -7,8 +7,9 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var path = require('path');
 
-//gonna need a shim
-import serverSide from './serverSide.js';
+require("babel/register");
+
+var serverSide = require('./serverSide.js');
 
 var messageTypes = {
     playerSet: 'set player',
@@ -38,6 +39,8 @@ var server = http.listen(80, function () {
     var port = server.address().port;
 
     console.log('App listening at http://%s:%s', host, port);
+
+    serverSide.startGame(io);
 
 });
 

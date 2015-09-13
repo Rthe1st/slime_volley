@@ -19,12 +19,13 @@ var unackInputSamples = [];
 var gameClock;
 var mechanics;
 
-var clientSettings = {toExtrapolate: false, useServerInputs: false};
+var clientSettings = {toExtrapolate: false, useServerInputs: false, localSimulation: false};
 
 export function loadGUI(gui) {
     var folder = gui.addFolder('Client settings');
     folder.add(clientSettings, 'toExtrapolate');
     folder.add(clientSettings, 'useServerInputs');
+    folder.add(clientSettings, 'localSimulation');
     storeGUI(gui);
 }
 
@@ -45,7 +46,7 @@ export function unregisterSocket(socket) {
 }
 
 var sendMove = function (samplePack) {
-    gameClock.piggyBackSync(samplePack);
+    GameClock.piggyBackSync(samplePack);
     socket.emit('send move', samplePack);
 };
 
@@ -91,9 +92,13 @@ var update = function () {
         };
         unackInputSamples.push(samplePack);
         sendMove({inputSample: samplePack.inputSample, timeStamp: samplePack.timeStamp});
-        mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputSample);
+        if(clientSettings.localSimulation) {
+            mechanics.moveSlime(socket.playerInfo.team, socket.playerInfo.slime, inputSample);
+        }
     }
-    mechanics.localUpdate(socket.playerInfo);
+    if(clientSettings.localSimulation) {
+        mechanics.localUpdate(socket.playerInfo);
+    }
 };
 
 export function registerSocket(socketRef) {
@@ -106,7 +111,7 @@ export function startGame() {
     document.getElementById('pingTest').onclick = function () {
         GameClock.manualSync(socket, true);
     };
-    mechanics = new Mechanics(Phaser, gameClock.now, true);
-    mechanics.startGame(update);
+    mechanics = new Mechanics(Phaser, gameClock.now, true, true);
     GameClock.manualSync(socket);
+    mechanics.startGame(update);
 }
