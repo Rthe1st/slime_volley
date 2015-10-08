@@ -5,9 +5,11 @@ import {settings, Mechanics} from './mechanics.js';
 
 import {limitVelocity} from './GameMaths.js';
 
+import phaserWrapper from '../libaryWrappers/phaserWrapper.js';
+
 export default class extends Phaser.Sprite {
     constructor(x, y, color, mechanics) {
-        super(mechanics.game, x, y);
+        super(mechanics.PhaserWrapper.game, x, y);
         this.mechanics = mechanics;
         this.maxSpeed = 500;
         this.moveForce = 5000;
@@ -59,7 +61,7 @@ export default class extends Phaser.Sprite {
 
         }
 
-        this.game.add.existing(this);
+        mechanics.PhaserWrapper.addGameObject(this);
 
     }
 
@@ -75,6 +77,9 @@ export default class extends Phaser.Sprite {
     }
 
     move(inputSample) {
+        console.log('now: '+this.mechanics.now())
+        console.log('moveTimeout: '+this.moveTimeOut)
+        console.log('lastMoveTime: '+this.lastMoveTime)
         if(this.mechanics.now() - this.moveTimeOut > this.lastMoveTime) {
             this.lastMoveTime = this.mechanics.now();
             if (settings.useMouse) {

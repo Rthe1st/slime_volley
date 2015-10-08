@@ -2,10 +2,13 @@
 'use strict';
 
 import {settings} from './mechanics.js';
+import phaserWrapper from '../libaryWrappers/phaserWrapper.js';
 
-export default class extends Phaser.Sprite {
+
+//extend framework .sprite instead?
+export default class extends phaserWrapper.Sprite {
     constructor(x, y, color, initialSize, mechanics) {
-        super(mechanics.game, x, y);
+        super(mechanics.PhaserWrapper.game, x, y);
         this.name = 'goal';
 
         this.game.physics.p2.enable(this, settings.debug);
@@ -21,6 +24,6 @@ export default class extends Phaser.Sprite {
 
         }
 
-        this.game.add.existing(this);
+        mechanics.PhaserWrapper.addGameObject(this);
     }
 }

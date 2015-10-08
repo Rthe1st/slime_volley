@@ -13,7 +13,7 @@ export default class {
         this.goal = new Goal(goalCords.x, goalCords.y, this.color, settings.initialGoalSize, mechanics);
         this.slimes = [];
         this.slimes[0] = new Slime(slimeCords.x, slimeCords.y, this.color, mechanics);
-        this.statCard = new StatCard(statCords, 0, mechanics.game);
+        this.statCard = new StatCard(statCords, 0, mechanics.PhaserWrapper.game);
     }
 
     reset() {

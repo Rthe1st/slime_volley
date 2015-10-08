@@ -25,6 +25,9 @@
     "del": "^1.1.0",
     "gulp": "^3.8.0",
     "gulp-util": "^3.0.0",
+    "hackedPhaser": "file:..\\hacked_phaser",
+    "p2": "^0.7.0",
+    "pixi.js": "^3.0.7",
     "vinyl-source-stream": "^1.0.0"
   },
   "keywords": [],

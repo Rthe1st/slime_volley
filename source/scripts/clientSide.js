@@ -4,10 +4,11 @@
 import {Mechanics, storeGUI} from './gamePlay/mechanics.js';
 import GameClock from './GameClock.js';
 
-//doesnt work becuase of Phaser.spirte extention in class files
-/*import * as phaserFramework from 'Phaser';
+import phaserWrapper from './libaryWrappers/phaserWrapper.js';
 
- var Phaser = phaserFramework.Phaser;*/
+/*import * as phaserFramework from 'PhaserWrapper';
+
+ var PhaserWrapper = phaserFramework.PhaserWrapper;*/
 
 var socket;
 
@@ -19,7 +20,7 @@ var unackInputSamples = [];
 var gameClock;
 var mechanics;
 
-var clientSettings = {toExtrapolate: false, useServerInputs: false, localSimulation: false};
+var clientSettings = {toExtrapolate: false, useServerInputs: false, localSimulation: true};
 
 export function loadGUI(gui) {
     var folder = gui.addFolder('Client settings');
@@ -107,11 +108,11 @@ export function registerSocket(socketRef) {
 }
 export function startGame() {
     gameClock = new GameClock();
-    document.getElementById('showClock').onclick = gameClock.showClock;
+    document.getElementById('showClock').onclick = gameClock.showClock.bind(gameClock);
     document.getElementById('pingTest').onclick = function () {
         GameClock.manualSync(socket, true);
     };
-    mechanics = new Mechanics(Phaser, gameClock.now, true, true);
+    mechanics = new Mechanics(phaserWrapper, gameClock.now.bind(gameClock), true, true);
     GameClock.manualSync(socket);
     mechanics.startGame(update);
 }

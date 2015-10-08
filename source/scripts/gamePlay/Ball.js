@@ -1,13 +1,15 @@
 /*jslint browser: true, browserify: true, devel: true*/
-'use strict';
+//'use strict';
 
 import {settings} from './mechanics.js';
 
 import {limitVelocity} from './GameMaths.js';
 
+//import phaserWrapper from '../libaryWrappers/phaserWrapper.js';
+
 export default class extends Phaser.Sprite {
     constructor(x, y, color, mechanics) {
-        super(mechanics.game, x, y);
+        super(mechanics.PhaserWrapper.game, x, y);
         this.mechanics = mechanics;
         this.startCords = {x: x, y: y};
         this.owner = null;//the team that last touched the ball
@@ -27,7 +29,6 @@ export default class extends Phaser.Sprite {
 
         this.body.onEndContact.add(this.endContact, this);
 
-
         if(settings.frontEnd) {
 
             //not sure what this does, if the drawCircle and body circle are given the same values
@@ -42,7 +43,7 @@ export default class extends Phaser.Sprite {
             this.addChild(graphic);
         }
 
-        this.game.add.existing(this);
+        mechanics.PhaserWrapper.addGameObject(this);
     }
 
     endContact(body) {

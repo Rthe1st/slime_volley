@@ -11,60 +11,68 @@ export let settings = {useMouse: true, initialGoalSize: {height: 100, width: 50}
 var gui;
 
 export class Mechanics {
-    constructor(Phaser, nowFunction, allowGUI, debug) {
-        this.Phaser = Phaser;
+    constructor(PhaserWrapper, nowFunction, allowGUI, debug) {
+        this.PhaserWrapper = PhaserWrapper;
+        this.framework = this.PhaserWrapper.framework;
         this.now = nowFunction;
-        this.allowGUI = settings.frontEnd = allowGUI;
-        settings.debug = debug;
+        //this.allowGUI = settings.frontEnd = allowGUI;
+        //settings.debug = debug;
+    }
+
+    setupPhysics(){
+        this.PhaserWrapper.game.physics.startSystem(this.framework.Physics.P2JS);
+        this.material = {
+            slime: new this.framework.Physics.P2.Material('SLIME'),
+            ball: new this.framework.Physics.P2.Material('BALL')
+        };
+        this.PhaserWrapper.game.physics.p2.restitution = 0.5;
+        this.PhaserWrapper.game.physics.p2.gravity.y = 0;
+        this.PhaserWrapper.game.physics.p2.friction = 0.9;
+
+        var slime_ball_contact = new this.framework.Physics.P2.ContactMaterial(this.material.slime, this.material.ball, {
+            restitution: 0.75,
+            stiffness: Number.MAX_VALUE,
+            friction: 0.99
+        });
+        this.PhaserWrapper.game.physics.p2.addContactMaterial(slime_ball_contact);
     }
 
     create() {
-
-        this.goalScored = false;
-        this.teams = [];
-        this.balls = [];
-
-        this.game.physics.startSystem(this.Phaser.Physics.P2JS);
 
         if (settings.frontEnd) {
 
             var keyCodes = {w: 87, a: 65, s: 83, d: 68};
             this.controls = {
-                up: this.game.input.keyboard.addKey(keyCodes.w),
-                left: this.game.input.keyboard.addKey(keyCodes.a),
-                down: this.game.input.keyboard.addKey(keyCodes.s),
-                right: this.game.input.keyboard.addKey(keyCodes.d)
+                up: this.PhaserWrapper.game.input.keyboard.addKey(keyCodes.w),
+                left: this.PhaserWrapper.game.input.keyboard.addKey(keyCodes.a),
+                down: this.PhaserWrapper.game.input.keyboard.addKey(keyCodes.s),
+                right: this.PhaserWrapper.game.input.keyboard.addKey(keyCodes.d)
             };
         }
 
-        this.material = {
-            slime: new this.Phaser.Physics.P2.Material('SLIME'),
-            ball: new this.Phaser.Physics.P2.Material('BALL')
-        };
+        this.setupPhysics();
 
-        this.game.physics.p2.restitution = 0.5;
-        this.game.physics.p2.gravity.y = 0;
-        this.game.physics.p2.friction = 0.9;
+        this.goalScored = false;
+        this.teams = [];
+        this.balls = [];
+
+        let worldSize = this.PhaserWrapper.worldSize();
+
         this.teams[0] = new Team(0x0000ff,
-            {x: settings.initialGoalSize.width / 2, y: this.game.world.height / 2},
-            {x: this.game.world.width / 4, y: this.game.world.height / 2},
-            {x: this.game.world.width / 4, y: 0},
+            {x: settings.initialGoalSize.width / 2, y: worldSize.height / 2},
+            {x: worldSize.width / 4, y: worldSize.height / 2},
+            {x: worldSize.width / 4, y: 0},
             this
         );
         this.teams[1] = new Team(0xff0000,
-            {x: this.game.world.width - settings.initialGoalSize.width / 2, y: this.game.world.height / 2},
-            {x: this.game.world.width * 3 / 4, y: this.game.world.height / 2},
-            {x: this.game.world.width * 3 / 4, y: 0},
+            {x: worldSize.width - settings.initialGoalSize.width / 2, y: worldSize.height / 2},
+            {x: worldSize.width * 3 / 4, y: worldSize.height / 2},
+            {x: worldSize.width * 3 / 4, y: 0},
             this
         );
 
-        this.balls[0] = new Ball(this.game.world.width / 2, this.game.world.height / 2, 0xffffff, this);
-        var slime_ball_contact = new this.Phaser.Physics.P2.ContactMaterial(this.material.slime, this.material.ball, {
-            restitution: 0.75,
-            stiffness: Number.MAX_VALUE,
-            friction: 0.99
-        });
-        this.game.physics.p2.addContactMaterial(slime_ball_contact);
+        this.balls[0] = new Ball(worldSize.width / 2, worldSize.height / 2, 0xffffff, this);
+
         //this. is required because we have to manualy .bind create() to stop 'this' being phaser
         this.internalPostCreate();
         if (this.externalPostCreate != undefined) {
@@ -75,14 +83,14 @@ export class Mechanics {
     internalPostCreate() {
         if (settings.frontEnd) {
             document.getElementById('pausePlay').onclick = function () {
-                if (!this.game.stepping) {
-                    this.game.enableStep();
+                if (!this.PhaserWrapper.game.stepping) {
+                    this.PhaserWrapper.game.enableStep();
                 } else {
-                    this.game.disableStep();
+                    this.PhaserWrapper.game.disableStep();
                 }
             };
             document.getElementById('step').onclick = function () {
-                this.game.step();
+                this.PhaserWrapper.game.step();
             };
             document.getElementById('showXY').onclick = function () {
                 this.printSlimeXY(0, 0);
@@ -97,15 +105,11 @@ export class Mechanics {
 
     startGame(update, tExternalPostCreate) {
         this.externalPostCreate = tExternalPostCreate;
-        //prevent create having this set to Phaser
-        this.game = new this.Phaser.Game(800, 600, Phaser.AUTO, '#phaser_parent', {
-            create: this.create.bind(this),
-            update: update
-        }, false, false);
+        this.PhaserWrapper.startGame(this.create.bind(this), update);
     }
 
     timeStep() {
-        return 1000 / this.game.time.desiredFps;
+        return 1000 / this.PhaserWrapper.fps();
     }
 
     sampleInput(teamNum, slimeNum) {
@@ -125,7 +129,7 @@ export class Mechanics {
     sampleMouse(teamNum, slimeNum) {
         var slime = this.teams[teamNum].slimes[slimeNum];
         var relativePoint = {x: slime.body.x, y: slime.body.y};
-        var mousePointer = this.game.input.mousePointer;
+        var mousePointer = this.PhaserWrapper.game.input.mousePointer;
         if (mousePointer.leftButton.isDown) {
             var inputSample = new Float64Array(2);
             //extract a normalised direction from player to mouse
@@ -153,11 +157,6 @@ export class Mechanics {
         } else {
             return null;
         }
-    }
-
-    manualUpdateHack() {
-        //this is an internal (and therefor unsupported function)
-        this.game.physics.p2.update();
     }
 
     localUpdate() {
@@ -197,7 +196,7 @@ export class Mechanics {
             if (recordStateCallback) {
                 recordStateCallback(packageState(), initialGameTime + simulatedTime);
             }
-            manualUpdateHack();
+            this.PhaserWrapper.manualUpdate();
         }
     }
 
@@ -262,10 +261,6 @@ export class Mechanics {
 
     moveSlime(teamNum, slimeNum, inputSample) {
         this.teams[teamNum].slimes[slimeNum].move(inputSample);
-    }
-
-    isPendingStep() {
-        return this.game.pendingStep;
     }
 
 }
