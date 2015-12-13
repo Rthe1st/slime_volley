@@ -17,15 +17,19 @@
     "dat-gui": "^0.5.0",
     "express": "4.10.0",
     "phaser": "^2.4.*",
-    "socket.io": "^1.3.0"
+    "socket.io": "^1.3.0",
+    "socket.io-client": "^1.3.7"
   },
   "devDependencies": {
+    "babel-preset-es2015": "^6.0.14",
     "babelify": "^6.1.0",
     "browserify": "^10.2.0",
     "del": "^1.1.0",
     "gulp": "^3.8.0",
+    "gulp-babel": "^6.0.0",
+    "gulp-concat": "^2.6.0",
+    "gulp-sourcemaps": "^1.6.0",
     "gulp-util": "^3.0.0",
-    "hackedPhaser": "file:..\\hacked_phaser",
     "p2": "^0.7.0",
     "pixi.js": "^3.0.7",
     "vinyl-source-stream": "^1.0.0"
@@ -37,22 +41,5 @@
   ],
   "scripts": {
     "prepublish": "gulp"
-  },
-  "jshintConfig": {
-    "undef": true,
-    "unused": true,
-    "curly": true,
-    "eqeqeq": true,
-    "freeze": true,
-    "forin": true,
-    "latedef": true,
-    "maxcomplexity": 6,
-    "maxdepth": 3,
-    "maxparams": 4,
-    "maxstatements": 15,
-    "noarg": true,
-    "nonbsp": true,
-    "nonew": true,
-    "singleGroups": true
   }
 }

@@ -4,12 +4,14 @@ var gulp = require('gulp'),
     del = require('del'),
     gulpUtil = require('gulp-util'),
     babelify = require('babelify');
+    babel = require("gulp-babel");
+    sourcemaps = require('gulp-sourcemaps');
+    concat = require('gulp-concat');
 
-var outDir = './public';
+var webDir = './public';
 
-//scripts
-gulp.task('scripts', function () {
-    return browserify('./source/scripts/socketSetUp.js', {debug: true})
+gulp.task('clientScripts', function(){
+    return browserify('./source/scripts/client/clientMain.js', {debug: true})
         .transform(babelify)
         .bundle()
         .on('error', function (err) {
@@ -18,46 +20,48 @@ gulp.task('scripts', function () {
             this.emit('end');
         })
         .pipe(vinylSourceStream('bundle.js'))
-        .pipe(gulp.dest(outDir + '/scripts'));
+        .pipe(gulp.dest(webDir + '/scripts'));
 });
 
-gulp.task('game_engine', function () {
-    return gulp.src(['./node_modules/phaser/build/phaser.min.js', './node_modules/phaser/build/phaser.map'])
-        .pipe(gulp.dest(outDir + '/scripts/lib'));
-});
-
-//html
-gulp.task('html', function () {
+gulp.task('clientHtml', function () {
     return gulp.src('./source/html/*.html')
-        .pipe(gulp.dest(outDir + '/html'));
+        .pipe(gulp.dest(webDir + '/html'));
+});
+
+gulp.task('clientBuild', function(){
+    gulp.start('clientScripts', 'clientHtml');
+});
+
+serverDir = './server';
+
+gulp.task('webServer', function(){
+    return gulp.src(["./source/scripts/{shared,server,framework}/**/*.js"])
+        .pipe(sourcemaps.init())
+        .pipe(babel({
+            presets: ['es2015']
+        }))
+        .pipe(sourcemaps.write('.'))
+        .pipe(gulp.dest(serverDir));
+});
+
+gulp.task('serverBuild', function(){
+    gulp.start('webServer');    
 });
 
 //clean
 //'callback' is apparently a hack to make sure the function finishes before returning?
 gulp.task('clean', function (callback) {
-    del([outDir + '/html', outDir + '/scripts'], callback)
+    del([webDir + '/*', serverDir + '*'], callback);
 });
 
 //default
 gulp.task('default', ['clean'], function () {
-    gulp.start('scripts', 'html', 'game_engine');
-});
-
-gulp.task('extrapoTest', [], function () {
-    return browserify('./source/scripts/extrapolationTests.js', {debug: true})
-        .transform(babelify)
-        .bundle()
-        .on('error', function (err) {
-            gulpUtil.log('failed browserify');
-            gulpUtil.log(err);
-            this.emit('end');
-        })
-        .pipe(vinylSourceStream('bundle.js'))
-        .pipe(gulp.dest(outDir + '/scripts'));
+    gulp.start('serverBuild', 'clientBuild');
 });
 
 //watch
 gulp.task('watch', function () {
-    gulp.watch('source/html/**/*.html', ['html']);
-    gulp.watch('source/scripts/**/*.js', ['scripts']);
+    gulp.watch('source/html/**/*.html', ['clientHtml']);
+    gulp.watch('./source/scripts/{shared,client}/**/*.js', ['clientScripts']);
+    gulp.watch('./source/scripts/{shared,framework,server}/**/*.js', ['serverBuild']);
 });
