@@ -1,15 +1,19 @@
+/*jshint devel: true, node:true*/
+
+'use strict';
+
 import socketIO from 'socket.io';
 
-import app from './app.js'
+import app from './app.js';
 import clientNetworkFramework from '../framework/components/clientNetworkFramework.js';
 
-clientNetwork = clientNetworkFramework.Network;
+let clientNetwork = clientNetworkFramework.Network;
 
-export Class Network{
+export class Network{
     constructor(){
         this.io = socketIO(app.getHttpServer);
         this.io.on('connection', function (socket) {
-            listeners = [
+            let listeners = [
                 this.sendMove,
                 this.realPing,
                 this.manualSync,

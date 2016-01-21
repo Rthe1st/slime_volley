@@ -1,3 +1,5 @@
+/*jshint devel: true, browserify:true*/
+
 'use strict';
 
 import * as p2 from 'p2';
@@ -25,14 +27,13 @@ export class Component{
     }
 }
 
-export class Physics{
+export class Framework{
     constructor(framework){
         this.framework = framework;
-        this.componentList = {};
+        this.componentList = new Map();
         this.world = new p2.World({gravity: [0,-9.78]});
         this.world.on('postStep', function(){
-            for(let entityID of Object.keys(this.componentList)){
-                let component = this.componentList[entityID];
+            for(let component of this.componentList.values()){
                 component.update();
             }
         }.bind(this));
@@ -45,6 +46,6 @@ export class Physics{
 
     addComponent(component){
         this.world.addBody(component.body);
-        this.componentList[component.entityID] = component;
+        this.componentList.set(component.entityID, component);
     }
 }

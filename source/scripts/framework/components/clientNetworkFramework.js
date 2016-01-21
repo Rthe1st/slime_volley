@@ -1,7 +1,11 @@
-export Class Network{
+/*jshint devel: true, browserify:true*/
+
+'use strict';
+
+export class Network{
     constructor(){
         let socket = io.connect();
-        listeners = [
+        let listeners = [
             this.syncResponse,
             this.sendState,
             this.playerJoined,
