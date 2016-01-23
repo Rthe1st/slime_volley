@@ -22,7 +22,7 @@ export class Component{
     }
 }
 
-export class Framework{
+export class System{
     constructor(framework){
         this.framework = framework;
         this.componentList = new Map();
@@ -32,7 +32,7 @@ export class Framework{
     }
 
     update(){
-        console.log("drawing framework update");
+        console.log("drawing system update");
         for(let component of this.componentList.values()){
             component.update();
         }

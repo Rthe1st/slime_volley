@@ -2,8 +2,8 @@
 
 'use strict';
 
-import *  as physicsFramework from './components/physicsFramework.js';
-import *  as drawingFramework from './components/drawingFramework.js';
+import *  as physicsSystem from './components/physicsSystem.js';
+import *  as drawingSystem from './components/drawingSystem.js';
 
 
 export default class Framework{
@@ -15,8 +15,8 @@ export default class Framework{
         for(let componentFrameworkClass of componentFrameworkClasses){
             this.componentFrameworks.push(new componentFrameworkClass());
         }*/
-        this.physicsFramework = new physicsFramework.Framework(this);
-        this.drawingFramework = new drawingFramework.Framework(this);
+        this.physicsSystem = new physicsSystem.System(this);
+        this.drawingSystem = new drawingSystem.System(this);
         //replace with uuid?
         this.nextEntityId = 0;
         this.entityList = new Set();
@@ -29,21 +29,21 @@ export default class Framework{
         return entityId;
     }
 
-    hasDependencies(framework){
-        if(framework.needsGUI && !this.hasGUI){
+    hasDependencies(system){
+        if(system.needsGUI && !this.hasGUI){
             console.log("component needs a GUI but we don't have one");
         }
-        for(let denpendency in framework.dependencies){
-            if(framework.hasOwnProperty(denpendency)){
-                console.log("component needs a " + denpendency + " framework");
+        for(let denpendency in system.dependencies){
+            if(system.hasOwnProperty(denpendency)){
+                console.log("component needs a " + denpendency + " system");
                 return false;
             }
         }
         if(this.hasGUI){
-            for(let guiDenpendency in framework.guiDependencies){
-                if(framework.hasOwnProperty(guiDenpendency)){
+            for(let guiDenpendency in system.guiDependencies){
+                if(system.hasOwnProperty(guiDenpendency)){
                     console.log("component relies needs a " + guiDenpendency +
-                                " framework for gui");
+                                " system for gui");
                     return false;
                 }
             }   
