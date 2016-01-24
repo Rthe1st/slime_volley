@@ -4,43 +4,35 @@
 
 import * as pixi from 'pixi.js';
 
-export class Component{
-    constructor(entityID){
-        let graphics = new pixi.Graphics();
-        // draw a circle, set the lineStyle to zero so the circle doesn't have an outline
-        graphics.lineStyle(0);
-        graphics.beginFill(0xFFFF0B, 0.5);
-        graphics.drawCircle(470, 90,60);
-        graphics.endFill();
+export class Attribute{
+    constructor(graphics, x, y){
         this.container = new pixi.Container();
+        this.container.x = x;
+        this.container.y = y;
         this.container.addChild(graphics);
-        this.ID = entityID;
-    }
-
-    update(){
-
     }
 }
 
 export class System{
-    constructor(framework){
-        this.framework = framework;
-        this.componentList = new Map();
+    constructor(){
+        this.entities = new Map();
         this.stage = new pixi.Container();
         this.renderer = pixi.autoDetectRenderer(800, 600,{backgroundColor : 0x1099bb});
         document.body.appendChild(this.renderer.view);
     }
 
     update(){
-        console.log("drawing system update");
-        for(let component of this.componentList.values()){
-            component.update();
+        for(let entity of this.entities.values()){
+            let physics = entity.attributes.get('physics');
+            let drawing = entity.attributes.get('drawing');
+            console.log(physics.body.position);
+            [drawing.container.x,drawing.container.y] = physics.body.position;
         }
         this.renderer.render(this.stage);
     }
 
-    addComponent(component){
-        this.stage.addChild(component.container);
-        this.componentList.set(component.entityID, component);
+    addEntity(entity){
+        this.stage.addChild(entity.attributes.get('drawing').container);
+        this.entities.set(entity.id, entity);
     }
 }

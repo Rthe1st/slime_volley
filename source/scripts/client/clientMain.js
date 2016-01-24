@@ -5,14 +5,13 @@
 import Framework from '../framework/Framework.js';
 import *  as physicsSystem from '../framework/components/physicsSystem.js';
 import *  as drawingSystem from '../framework/components/drawingSystem.js';
+import slimeGrouping from '../framework/groupings/slime.js';
 
 function initilise(framework){
     console.log('framework inited');
-    let entityID = framework.createEntity();
-    let physicsComponent = new physicsSystem.Component(entityID);
-    framework.physicsSystem.addComponent(physicsComponent);
-    let drawingComponent = new drawingSystem.Component(entityID);
-    framework.drawingSystem.addComponent(drawingComponent);
+    let entity = framework.createEntity();
+    slimeGrouping(entity, framework);
+    //entity.become(slimeSystem.slimeGrouping);
 }
 
 window.onload = function(){
