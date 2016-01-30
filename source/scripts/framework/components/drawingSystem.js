@@ -25,7 +25,6 @@ export class System{
         for(let entity of this.entities.values()){
             let physics = entity.attributes.get('physics');
             let drawing = entity.attributes.get('drawing');
-            console.log(physics.body.position);
             [drawing.container.x,drawing.container.y] = physics.body.position;
         }
         this.renderer.render(this.stage);

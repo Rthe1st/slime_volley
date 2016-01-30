@@ -1,15 +1,15 @@
 let Keys = {
   pressed: new Map(),
-  
+
   isDown: function(keyCode) {
     return this.pressed.has(keyCode);
   },
-  
+
   onKeydown: function(event) {
     console.log("key pressed");
     this.pressed.set(event.keyCode, true);
   },
-  
+
   onKeyup: function(event) {
     console.log("key up");
     this.pressed.delete(event.keyCode);
@@ -26,7 +26,7 @@ export class Behavior{
     update(){
         for(let [key, action] of this.keyMapping.entries()){
             if(Keys.isDown(key)){
-                this.entity.sendMessage({'type': action});                
+                this.entity.sendMessage({'type': action});
             }
         }
     }

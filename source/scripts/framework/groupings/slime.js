@@ -13,12 +13,12 @@ import slimeMovement from '../components/slimeMovement.js';
 export default function (entity, framework){
         let body = new p2.Body({
             mass: 1,
-            position: [470, 90],
+            position: [400, 300],
             angle: 0,
             velocity: [0, 0],
             angularVelocity: 0
         });
-        body.addShape(new p2.Circle({ radius: 1 }));
+        body.addShape(new p2.Circle({ radius: 60 }));
         entity.attributes.set('physics', new physicsSystem.Attribute(body));
         framework.physicsSystem.addEntity(entity);
 
@@ -29,7 +29,7 @@ export default function (entity, framework){
         graphics.beginFill(0xFFFF0B, 0.5);
         graphics.drawCircle(0, 0, 60);
         graphics.endFill();
-        entity.attributes.set('drawing', new drawingSystem.Attribute(graphics,470, 90));
+        entity.attributes.set('drawing', new drawingSystem.Attribute(graphics,400, 300));
         framework.drawingSystem.addEntity(entity);
         let left = 37;
         let up = 38;
