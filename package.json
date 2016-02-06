@@ -8,7 +8,7 @@
   "contributors": [
     "Richard Sommerville"
   ],
-  "main": "server/app.js",
+  "main": "server/server/startUp.js",
   "bugs": {
     "url": ""
   },
