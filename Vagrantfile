@@ -16,5 +16,3 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   #host_ip: "192.168.0.*" cant be used because it screws with docker install
   config.vm.network "forwarded_port", host: 80, guest: 80
 end
-
-
