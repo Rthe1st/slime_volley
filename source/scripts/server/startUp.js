@@ -3,11 +3,11 @@ import http from 'http';
 import path from 'path';
 
 let app = express();
+
+var serverDir = '/srv/slime_volley/public';
+app.use(express.static(serverDir));
+
 let httpServer = http.Server(app);
-
-var serverDir = '../..';
-
-app.use(express.static(path.join(__dirname, serverDir + '/public')));
 
 httpServer.listen(80, function () {
 
