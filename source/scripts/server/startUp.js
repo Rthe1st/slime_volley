@@ -1,3 +1,4 @@
+import webSockets from 'ws';
 import express from 'express';
 import http from 'http';
 import path from 'path';
@@ -19,4 +20,13 @@ httpServer.listen(80, function () {
     console.log('App listening at http://%s:%s', host, port);
 
     startGame();
+});
+
+let wss = new webSockets.Server({server: httpServer});
+wss.on('connection', function(ws) {
+    console.log("connection");
+    ws.send("sent_from_server");
+    ws.on('close', function() {
+        console.log('close');
+    });
 });
