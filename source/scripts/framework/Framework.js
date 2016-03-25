@@ -2,10 +2,6 @@
 
 'use strict';
 
-import *  as physicsSystem from './components/physicsSystem.js';
-import *  as drawingSystem from './components/drawingSystem.js';
-import * as userInput from './components/userInput.js';
-
 class Entity{
 
     constructor(id){
@@ -24,16 +20,19 @@ class Entity{
 
 export default class Framework{
 
-    constructor(initilise, componentFrameworkClasses, usingGUI=true){
+    constructor(initilise, componentSystems, usingGUI=true){
+        this.usingGUI = usingGUI;
         this.initilise = initilise;
-        //let componentSystems = [physicsFramework.Physics];
-        /*this.componentFrameworks = [];
-        for(let componentFrameworkClass of componentFrameworkClasses){
-            this.componentFrameworks.push(new componentFrameworkClass());
-        }*/
-        this.physicsSystem = new physicsSystem.System();
-        this.drawingSystem = new drawingSystem.System();
-        this.userInputSystem = new userInput.System();
+        //let componentSystems = [physicsSystem, drawingSystem, userInput];
+        //make this into a map with entires for systems?
+        //we need to fail obviously if system reuqired by a component doent exist
+        this.componentSystems = new Map();
+        for(let componentSystem of componentSystems){
+            if(!usingGUI && componentSystem.needsGUI){
+                console.log("error, " + componentSystem.systemName + " needs a GUI");
+            }
+            this.componentSystems.set(componentSystem.systemName, new componentSystem.System());
+        }
         //replace with uuid?
         this.nextEntityId = 0;
         this.entities = new Map();
@@ -48,13 +47,34 @@ export default class Framework{
 
     start(){
         this.initilise(this);
-        window.requestAnimationFrame(this.updateLoop.bind(this));
+        if(this.usingGUI){
+            window.requestAnimationFrame(this.updateLoop.bind(this));
+        }else{
+            setTimeout(this.updateLoop.bind(this), 0);
+        }
     }
 
     updateLoop(){
-        window.requestAnimationFrame(this.updateLoop.bind(this));
-        this.userInputSystem.update();
-        this.physicsSystem.update();
-        this.drawingSystem.update();
+        //to get performance scaling benifits from fix timestep
+        //all "graphical" systems should be update in a separte loop, post timestep update
+        /*let ms_per_update = 100;
+        let current = Date.now();
+        let elapsed = current - this.previous;
+        this.previous = current;
+        this.lag += elapsed;
+        while(this.lag >= ms_per_update){
+            this.lag -= ms_per_update;*/
+            //this order is determinitistic, is in insertion order
+            //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
+            for(let componentSystem of this.componentSystems.values()){
+                componentSystem.update();
+            }
+        //}
+        if(this.usingGUI){
+            window.requestAnimationFrame(this.updateLoop.bind(this));
+        }else{
+            setTimeout(this.updateLoop.bind(this), 0);
+        }
+
     }
 }

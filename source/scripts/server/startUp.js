@@ -2,6 +2,8 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 
+import startGame from './serverMain.js';
+
 let app = express();
 
 var serverDir = '/srv/slime_volley/public';
@@ -15,4 +17,6 @@ httpServer.listen(80, function () {
     var port = httpServer.address().port;
 
     console.log('App listening at http://%s:%s', host, port);
+
+    startGame();
 });

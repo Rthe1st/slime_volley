@@ -4,6 +4,10 @@
 
 import * as p2 from 'p2';
 
+//crappy hungarion notation
+export let systemName = "physics";
+export let needsGUI = false;
+
 export class Attribute{
     constructor(body){
         this.body = body;

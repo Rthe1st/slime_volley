@@ -1,3 +1,8 @@
+
+//crappy hungarion notation
+export let systemName = "userInput";
+export let needsGUI = true;
+
 let Keys = {
   pressed: new Map(),
 

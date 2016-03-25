@@ -4,6 +4,10 @@
 
 import * as pixi from 'pixi.js';
 
+//crappy hungarion notation
+export let systemName = "drawing";
+export let needsGUI = true;
+
 export class Attribute{
     constructor(graphics, x, y){
         this.container = new pixi.Container();
@@ -14,6 +18,7 @@ export class Attribute{
 }
 
 export class System{
+
     constructor(){
         this.entities = new Map();
         this.stage = new pixi.Container();
