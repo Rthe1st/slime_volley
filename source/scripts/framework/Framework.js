@@ -47,6 +47,8 @@ export default class Framework{
 
     start(){
         this.initilise(this);
+        this.lag = 0;
+        this.previous = Date.now();
         if(this.usingGUI){
             window.requestAnimationFrame(this.updateLoop.bind(this));
         }else{
@@ -57,19 +59,19 @@ export default class Framework{
     updateLoop(){
         //to get performance scaling benifits from fix timestep
         //all "graphical" systems should be update in a separte loop, post timestep update
-        /*let ms_per_update = 100;
+        let ms_per_update = 1000/60;
         let current = Date.now();
         let elapsed = current - this.previous;
         this.previous = current;
         this.lag += elapsed;
         while(this.lag >= ms_per_update){
-            this.lag -= ms_per_update;*/
+            this.lag -= ms_per_update;
             //this order is determinitistic, is in insertion order
             //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
             for(let componentSystem of this.componentSystems.values()){
                 componentSystem.update();
             }
-        //}
+        }
         if(this.usingGUI){
             window.requestAnimationFrame(this.updateLoop.bind(this));
         }else{

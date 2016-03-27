@@ -36,7 +36,9 @@ export class System{
     }
 
     update(){
-        this.world.step(1/60);
+        //magic number, should be [assed in from framework to match global lag step]
+        let ms = 1000/60;
+        this.world.step(ms/1000);
     }
 
     addEntity(entity){
