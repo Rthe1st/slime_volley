@@ -1,0 +1,22 @@
+what if score is measured on how many goals you've scored,
+but there are more then 2 teams
+so who you score against doesnt matter
+then, you could consistantly aim for the weakest player, but netural players would end up
+partily coming to their aid, but only as a means of preventing your score from increasing too much
+
+Problem: you would have to ban own goals, which could make diliberatly scoring own goals a method of 'goal denial'
+
+Or: give everyone (bar the defender) a point eveyr time any goal scored
+This could cause temporary alliances to help defeat indivdual good players
+
+Or:
+'owner' of balls scores point
+if own goal, they lose point
+
+
+A DOIE
+
+WASD move can be improved by using car mechanics, W = accerlate, A and D adjust direction
+frees mouse up for powers, plus may give more fun mechanics
+also harder ubt - car game from gamedesign where the whole screen rotated instead of the car,
+gave fun sense of dynamic movement, worth a try to give sense of speed (even if just a paralax version?)

@@ -13,8 +13,9 @@ export class System{
             this.ws.send('something');
         }.bind(this);
 
-        this.ws.onmessage = function() {
+        this.ws.onmessage = function(messageEvent) {
             console.log("message");
+            console.log(messageEvent.data);
             // flags.binary will be set if a binary data is received.
             // flags.masked will be set if the data was masked.
         };
@@ -31,9 +32,15 @@ export class System{
         }*/
     }
 
-    send_input(input){
-        console.log("send input");
-        this.ws.send(input);
+    update(){
+
+    }
+
+    sendData(input){
+        if(this.ws.readyState == WebSocket.OPEN){
+            console.log("send input");
+            this.ws.send('ff');
+        }
     }
 
     //this should nothing as all "entirites" need updating based on server state
@@ -53,9 +60,5 @@ export class System{
 
     playerSet() {
         console.log('playerSet recieved');
-    }
-
-    sendState(data){
-        console.log('Got state recieved');
     }
 }

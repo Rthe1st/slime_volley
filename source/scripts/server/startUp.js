@@ -22,4 +22,4 @@ httpServer.listen(80, function () {
 });
 
 let wss = new webSockets.Server({server: httpServer});
-//startGame(wss);
+startGame(wss);

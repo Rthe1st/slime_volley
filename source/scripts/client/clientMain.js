@@ -6,7 +6,8 @@ import Framework from '../framework/Framework.js';
 import *  as physicsSystem from '../framework/components/physicsSystem.js';
 import *  as drawingSystem from '../framework/components/drawingSystem.js';
 import slimeGrouping from '../framework/groupings/slimeGUI.js';
-import * as userInput from '../framework/components/userInput.js';
+import * as localInput from '../framework/localInput/client.js';
+import * as networking from '../framework/networking/client.js';
 
 function initilise(framework){
     console.log('framework inited');
@@ -16,6 +17,6 @@ function initilise(framework){
 }
 
 window.onload = function(){
-    let framework = new Framework(initilise, [physicsSystem, drawingSystem, userInput]);
+    let framework = new Framework(initilise, localInput, networking, [physicsSystem, drawingSystem]);
     framework.start();
 };

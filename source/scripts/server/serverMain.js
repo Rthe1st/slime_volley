@@ -2,9 +2,9 @@
 
 import Framework from '../framework/Framework.js';
 import *  as physicsSystem from '../framework/components/physicsSystem.js';
-//import *  as drawingSystem from '../framework/components/drawingSystem.js';
 import slimeGrouping from '../framework/groupings/slime.js';
-import * as userInput from '../framework/components/userInput.js';
+import * as localInput from '../framework/localInput/server.js';
+import * as networking from '../framework/networking/server.js';
 
 function initilise(framework){
     console.log('framework inited');
@@ -13,7 +13,8 @@ function initilise(framework){
     //entity.become(slimeSystem.slimeGrouping);
 }
 
-export default function startGame(){
-    let framework = new Framework(initilise, [physicsSystem], false);
+export default function startGame(websocketServer){
+    let framework = new Framework(initilise, localInput, networking, [physicsSystem], false);
+    framework.networking.setWebSocket(websocketServer);
     framework.start();
 }

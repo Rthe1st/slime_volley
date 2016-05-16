@@ -11,9 +11,7 @@ export let settings = {useMouse: true, initialGoalSize: {height: 100, width: 50}
 var gui;
 
 export class Mechanics {
-    constructor(PhaserWrapper, nowFunction, allowGUI, debug) {
-        this.PhaserWrapper = PhaserWrapper;
-        this.framework = this.PhaserWrapper.framework;
+    constructor(nowFunction, allowGUI, debug) {
         this.now = nowFunction;
         //this.allowGUI = settings.frontEnd = allowGUI;
         //settings.debug = debug;

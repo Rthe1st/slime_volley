@@ -1,8 +1,4 @@
-import * as clientNetworking from './clientNetworking.js';
-
-//crappy hungarion notation
-export let systemName = "userInput";
-export let needsGUI = true;
+let tag = 'localInput';
 
 export class Behavior{
     constructor(entity, keyMapping){
@@ -40,7 +36,6 @@ class Keys {
 
 export class System{
     constructor(){
-        this.clientNetworking = new clientNetworking.System();
         this.entities = new Map();
         this.keys = new Keys();
         //woulod be better to attach to pixi rendering window?
@@ -49,9 +44,8 @@ export class System{
     }
 
     update(){
-        //this.clientNetworking.send_input('dog');
         for(let entity of this.entities.values()){
-            entity.behaviors.get('userInput').update(this.keys);
+            entity.behaviors.get(tag).update(this.keys);
         }
     }
 

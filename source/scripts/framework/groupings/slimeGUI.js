@@ -6,7 +6,7 @@ import * as pixi from 'pixi.js';
 
 import slimeGrouping from './slime.js';
 import *  as drawingSystem from '../components/drawingSystem.js';
-import * as userInput from '../components/userInput.js';
+import * as localInput from '../localInput/client.js';
 
 export default function (entity, framework){
         slimeGrouping(entity, framework);
@@ -28,6 +28,7 @@ export default function (entity, framework){
             [right, 'right'],
             [up, 'jump'],
         ];
-        entity.behaviors.set('userInput', new userInput.Behavior(entity, keyMapping));
-        framework.componentSystems.get(userInput.systemName).addEntity(entity);
+        //this is a bit shit, relies on user importing same lolcalInput lib as framework
+        entity.behaviors.set('localInput', new localInput.Behavior(entity, keyMapping));
+        framework.localInput.addEntity(entity);
 }
