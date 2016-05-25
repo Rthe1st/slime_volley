@@ -41,21 +41,23 @@ class Entity{
 
 export default class Framework{
 
-    constructor(initilise, localInput, networking, componentSystems, isClient=true){
-        this.isClient = isClient;
+    constructor(initilise, localInput, networking, gameClock, componentSystems){
         this.initilise = initilise;
         this.localInput = new localInput.System();
         this.networking = new networking.System();
+        this.gameClock = new gameClock();
+        this.networking.registerMessageCallback("estimateLag", this.gameClock.estimateLag);
+        this.networking.registerMessageCallback("state", function (){});
+        console.log(this.networking.messageCallbacks.keys());
         this.componentSystems = new Map();
         for(let componentSystem of componentSystems){
-            if(!isClient && componentSystem.needsGUI){
-                console.log("error, " + componentSystem.systemName + " needs a GUI");
-            }
             this.componentSystems.set(componentSystem.systemName, new componentSystem.System());
         }
         //replace with uuid?
         this.nextEntityId = 0;
         this.entities = new Map();
+        this.initilise(this);
+        this.start();
     }
 
     createEntity(){
@@ -65,15 +67,11 @@ export default class Framework{
         return entity;
     }
 
+    //the client probably shouldnt call this untill they get a conection (and a serverStartTime)
     start(){
-        this.initilise(this);
         this.lag = 0;
         this.previous = Date.now();
-        if(this.isClient){
-            window.requestAnimationFrame(this.updateLoop.bind(this));
-        }else{
-            setTimeout(this.updateLoop.bind(this), 0);
-        }
+        window.requestAnimationFrame(this.updateLoop.bind(this));
     }
 
     updateLoop(){
@@ -85,7 +83,10 @@ export default class Framework{
         this.previous = current;
         this.lag += elapsed;
         this.localInput.update();
-        this.networking.update();
+        this.networking.send("estimateLag", this.gameClock.estimateLagPacketPayload());
+        this.networking.send("input", {});
+        //proccess any returned states here
+        //console.log(this.gameClock.gameTime());
         //need to think about splitting rendering out of this loop
         while(this.lag >= ms_per_update){
             this.lag -= ms_per_update;
@@ -95,14 +96,7 @@ export default class Framework{
                 componentSystem.update();
             }
         }
-        //these network call should maybe be made above physics
-        //that way they happen soon as possible after external (i.e. non-predictable) shit happens
-        this.networking.sendData();
-        if(this.isClient){
-            window.requestAnimationFrame(this.updateLoop.bind(this));
-        }else{
-            setTimeout(this.updateLoop.bind(this), 0);
-        }
+        window.requestAnimationFrame(this.updateLoop.bind(this));
 
     }
 }

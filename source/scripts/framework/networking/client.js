@@ -5,60 +5,35 @@
 export class System{
     constructor(){
         this.ws = new WebSocket('ws://127.0.0.1');
-        this.onmessage = function (event) {
-            console.log("message");
-        };
+        this.queue = [];
+        this.messageCallbacks = new Map();
         this.ws.onopen = function() {
-            console.log("open");
-            this.ws.send('something');
+            while(this.queue.length > 0){
+                this.send(this.queue.pop());
+            }
         }.bind(this);
 
-        this.ws.onmessage = function(messageEvent) {
-            console.log("message");
-            console.log(messageEvent.data);
-            // flags.binary will be set if a binary data is received.
-            // flags.masked will be set if the data was masked.
-        };
-
-        /*let socket = io.connect();
-        let listeners = [
-            this.syncResponse,
-            this.sendState,
-            this.playerJoined,
-            this.playerSet
-        ];
-        for(let listener of listeners){
-            socket.on(listener.name, listener);
-        }*/
+        this.ws.onmessage = function(event) {
+            let message = JSON.parse(event.data);
+            if(this.messageCallbacks.has(message.type)){
+                this.messageCallbacks.get(message.type)(message.payload);
+            }else{
+                console.log("message type " + message.type + " not registered");
+            }
+        }.bind(this);
     }
 
-    update(){
-
+    registerMessageCallback(type, callback){
+        this.messageCallbacks.set(type, callback);
     }
 
-    sendData(input){
-        if(this.ws.readyState == WebSocket.OPEN){
-            console.log("send input");
-            this.ws.send('ff');
+    send(type, payload){
+        let message = {"type": type, "payload": payload};
+        //console.log("ws ready state" + this.ws.readyState);
+        if(this.ws.readyState == this.ws.OPEN){
+            this.ws.send(JSON.stringify(message));
+        }else{
+            this.queue.push(message);
         }
-    }
-
-    //this should nothing as all "entirites" need updating based on server state
-    //unless we decide to exclude some
-    /*addEntity(entity){
-        this.stage.addChild(entity.attributes.get('drawing').container);
-        this.entities.set(entity.id, entity);
-    }*/
-
-    syncResponse(){
-        console.log('syncResponse recieved');
-    }
-
-    playerJoined() {
-        console.log('playerJoined recieved');
-    }
-
-    playerSet() {
-        console.log('playerSet recieved');
     }
 }
