@@ -5,6 +5,9 @@
 //1) Any offset between the server and client Date.now()'s remaining constant
 export default class GameClock{
     constructor(){
+        //default must be larger then any reasonable time
+        //10 seconds would would make the game unplayable anyway
+        this.minimumRoundTrip = 10000;
     }
 
     estimateLagPacketPayload(){
@@ -12,9 +15,12 @@ export default class GameClock{
     }
 
     //add a parameter "wasted time" if the server does stuff before it replies
-    estimateLag(originalClientTime, serverTime){
+    estimateLag(payload){
         let finalClientTime = Date.now();
-        let roundTrip = originalClientTime - finalClientTime;
+        this.serverStartTime = payload.serverStartTime;
+        let originalClientTime = payload.originalClientTime;
+        let serverTime = payload.serverTime;
+        let roundTrip = finalClientTime - originalClientTime;
 
         //estiamte lag
         let lag = roundTrip/2;
@@ -22,6 +28,7 @@ export default class GameClock{
         //and the small total journey time, the less room for (roundTrip/2) to be wrong
         if(roundTrip < this.minimumRoundTrip){
             this.minimumRoundTrip = roundTrip;
+            console.log("new min roundTrip: " + this.minimumRoundTrip);
 
             let currentTime = finalClientTime;
             this.startTotalDifference = currentTime - serverTime;

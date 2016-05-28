@@ -46,8 +46,12 @@ export default class Framework{
         this.networking = new networking.System(websocketServer);
         this.gameClock = new gameClock();
         this.networking.registerMessageCallback("estimateLag", function(data, websocket){
+            //sending this every time is a crap waste, better to send in initial connection setup
+            data.serverStartTime = this.gameClock.startTime;
+            data.serverTime = Date.now();
             this.networking.send("estimateLag", data, websocket.id);
         }.bind(this));
+        this.networking.registerMessageCallback("input", function(data, websocket){}.bind(this));
         this.componentSystems = new Map();
         for(let componentSystem of componentSystems){
             this.componentSystems.set(componentSystem.systemName, new componentSystem.System());

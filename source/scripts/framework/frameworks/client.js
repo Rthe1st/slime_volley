@@ -46,9 +46,8 @@ export default class Framework{
         this.localInput = new localInput.System();
         this.networking = new networking.System();
         this.gameClock = new gameClock();
-        this.networking.registerMessageCallback("estimateLag", this.gameClock.estimateLag);
+        this.networking.registerMessageCallback("estimateLag", this.gameClock.estimateLag.bind(this.gameClock));
         this.networking.registerMessageCallback("state", function (){});
-        console.log(this.networking.messageCallbacks.keys());
         this.componentSystems = new Map();
         for(let componentSystem of componentSystems){
             this.componentSystems.set(componentSystem.systemName, new componentSystem.System());

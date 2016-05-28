@@ -9,7 +9,9 @@ export class System{
         this.messageCallbacks = new Map();
         this.ws.onopen = function() {
             while(this.queue.length > 0){
-                this.send(this.queue.pop());
+                let type, payload;
+                ({type, payload} = this.queue.pop());
+                this.send(type, payload);
             }
         }.bind(this);
 

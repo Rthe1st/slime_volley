@@ -20,6 +20,7 @@ export class System{
                     this.messageCallbacks.get(message.type)(message.payload, websocket);
                 }else{
                     console.log("message type " + message.type + " not registered");
+                    console.log(message);
                 }
             }.bind(this);
             websocket.onclose = function close() {
@@ -35,16 +36,18 @@ export class System{
 
     send(type, payload, websocketId){
         let message = {"type": type, "payload": payload};
-        this.websockets.get(websocketId).send(JSON.stringify(message));
+        let websocket = this.websockets.get(websocketId);
+        if(websocket.readyState == websocket.OPEN){
+            websocket.send(JSON.stringify(message));
+        }
     }
 
     sendBroadCast(type, payload){
         let message = {"type": type, "payload": payload};
-        //we could also do this with:
-        //this.wss.clients
-        //but is it worth it if we've already got a map?
         for(let websocket of this.websockets.values()){
-            websocket.send(JSON.stringify(message));
+            if(websocket.readyState == websocket.OPEN){
+                websocket.send(JSON.stringify(message));
+            }
         }
     }
 }
