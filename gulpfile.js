@@ -6,46 +6,61 @@ var gulp = require('gulp'),
     babelify = require('babelify');
     babel = require("gulp-babel");
     sourcemaps = require('gulp-sourcemaps');
-    concat = require('gulp-concat');
+    cached = require('gulp-cached');
+    remember = require('gulp-remember');
+    watchify = require('watchify');
 
 var webDir = './public';
 
 gulp.task('clientScripts', function(){
-    return browserify('./source/scripts/client/clientMain.js', {debug: true})
-        .transform(babelify)
-        .bundle()
-        .on('error', function (err) {
-            gulpUtil.log('failed browserify');
-            gulpUtil.log(err);
-            this.emit('end');
-        })
+    var bundler = browserify({
+        entries: ['./source/scripts/client/clientMain.js'],
+        debug: true,// Gives us sourcemapping
+        transform: [babelify],
+        cache: {}, packageCache: {}, fullPaths: true // Requirement of watchify
+    });
+    var watcher = watchify(bundler);
+
+    return watcher
+    .on('update', function(){
+        var updateStart = Date.now();
+        console.log('Updating!');
+        watcher.bundle() // Create new bundle that uses the cache for high performance
         .pipe(vinylSourceStream('bundle.js'))
         .pipe(gulp.dest(webDir + '/scripts'));
+        console.log('Updated!', (Date.now() - updateStart) + 'ms');
+    }).bundle()
+    .on('error', function (err) {
+        gulpUtil.log('failed browserify');
+        gulpUtil.log(err);
+        this.emit('end');
+    })
+    .pipe(vinylSourceStream('bundle.js'))
+    .pipe(gulp.dest(webDir + '/scripts'));
 });
 
+var htmlSource = './source/html/*.html';
+
 gulp.task('clientHtml', function () {
-    return gulp.src('./source/html/*.html')
+    return gulp.src(htmlSource)
+        .pipe(cached('client_html'))
         .pipe(gulp.dest(webDir + '/html'));
 });
 
-gulp.task('clientBuild', function(){
-    gulp.start('clientScripts', 'clientHtml');
-});
+var serverDir = './server';
 
-serverDir = './server';
-
+var serverSource = ["./source/scripts/server/*.js", "./source/scripts/framework/*/server.js", "./source/scripts/framework/{groupings,components}/*.js"];
+//use gulp.watch and cache to update these
 gulp.task('webServer', function(){
-    return gulp.src(["./source/scripts/{shared,server,framework}/**/*.js"])
+    return gulp.src(serverSource)
+        .pipe(cached('webserver'))
         .pipe(sourcemaps.init())
         .pipe(babel({
             presets: ['es2015']
         }))
         .pipe(sourcemaps.write('.'))
+        .pipe(remember('webserver'))
         .pipe(gulp.dest(serverDir));
-});
-
-gulp.task('serverBuild', function(){
-    gulp.start('webServer');    
 });
 
 //clean
@@ -56,12 +71,13 @@ gulp.task('clean', function (callback) {
 
 //default
 gulp.task('default', ['clean'], function () {
-    gulp.start('serverBuild', 'clientBuild');
+    gulp.start('clientScripts', 'clientHtml', 'webServer');
 });
 
 //watch
 gulp.task('watch', function () {
-    gulp.watch('source/html/**/*.html', ['clientHtml']);
-    gulp.watch('./source/scripts/{shared,client}/**/*.js', ['clientScripts']);
-    gulp.watch('./source/scripts/{shared,framework,server}/**/*.js', ['serverBuild']);
+    gulp.start('clean');
+    gulp.start('clientScripts', 'clientHtml', 'webServer');
+    gulp.watch(htmlSource, ['clientHtml']);
+    gulp.watch(serverSource, ['webServer']);
 });
