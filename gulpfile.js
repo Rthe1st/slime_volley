@@ -49,7 +49,7 @@ gulp.task('clientHtml', function () {
 
 var serverDir = './server';
 
-var serverSource = ["./source/scripts/server/*.js", "./source/scripts/framework/*/server.js", "./source/scripts/framework/{groupings,components}/*.js"];
+var serverSource = ["./source/scripts/{server,shared}/**/*.js"];
 //use gulp.watch and cache to update these
 gulp.task('webServer', function(){
     return gulp.src(serverSource)

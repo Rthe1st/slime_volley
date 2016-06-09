@@ -4,9 +4,9 @@
 
 import * as pixi from 'pixi.js';
 
-import slimeGrouping from './slime.js';
+import slimeGrouping from '../../shared/groupings/slime.js';
 import *  as drawingSystem from '../components/drawingSystem.js';
-import * as localInput from '../localInput/client.js';
+import * as localInput from '../framework/localInput.js';
 
 export default function (entity, framework){
         slimeGrouping(entity, framework);

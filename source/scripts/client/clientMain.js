@@ -2,13 +2,14 @@
 
 "use strict";
 
-import Framework from '../framework/frameworks/client.js';///'../framework/Framework.js';
-import *  as physicsSystem from '../framework/components/physicsSystem.js';
-import *  as drawingSystem from '../framework/components/drawingSystem.js';
-import slimeGrouping from '../framework/groupings/slimeGUI.js';
-import * as localInput from '../framework/localInput/client.js';
-import * as networking from '../framework/networking/client.js';
-import GameClock from '../framework/gameClock/client.js';
+import Framework from './framework/core.js';
+import *  as physicsSystem from '../shared/components/physicsSystem.js';
+import *  as drawingSystem from './components/drawingSystem.js';
+import slimeGrouping from './groupings/slimeGUI.js';
+import * as localInput from './framework/localInput.js';
+import * as networking from './framework/networking.js';
+import GameClock from './framework/gameClock.js';
+
 
 function initilise(framework){
     console.log('framework inited');
