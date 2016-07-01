@@ -1,19 +1,33 @@
 /*jshint devel: true*/
 
 import Framework from './framework/core.js';//'../framework/Framework.js';
-import *  as physicsSystem from '../shared/components/physicsSystem.js';
 import slimeGrouping from '../shared/groupings/slime.js';
-import * as localInput from './framework/localInput.js';
-import * as networking from './framework/networking.js';
-import GameClock from './framework/gameClock.js';
+
+import *  as physicsSystem from '../shared/systems/game/physics/system.js';
+import *  as inputSystem from '../shared/systems/input/system.js';
 
 function initilise(framework){
-    console.log('framework inited');
-    let entity = framework.createEntity();
+    console.log('framework initiated');
+    let entity = framework.entityManager.createEntity();
     slimeGrouping(entity, framework);
-    //entity.become(slimeSystem.slimeGrouping);
+}
+
+function saveState(){
+
+}
+
+function connect(player){
+    console.log("connect");
+}
+
+function disconnect(player){
+    console.log("disconnect");
 }
 
 export default function startGame(websocketServer){
-    let framework = new Framework(initilise, networking, GameClock, [physicsSystem], websocketServer);
+    let gameSystems = [physicsSystem];
+    let graphicSystems = [drawingSystem];
+    let inputSystems = [inputSystem];
+    let framework = new Framework(initilise, saveState, connect, disconnect,
+                                  gameSystems, inputSystems, websocketServer);
 }

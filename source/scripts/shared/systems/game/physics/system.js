@@ -2,23 +2,19 @@
 
 'use strict';
 
+//component contract:
+//none
+
 import * as p2 from 'p2';
 
-//crappy hungarion notation
 export let systemName = "physics";
-export let needsGUI = false;
 
-export class Attribute{
-    constructor(body){
-        this.body = body;
-    }
-}
-
-export class System{
+export class PhysicSystem{
     constructor(){
-        //physics is bigest at the bottom
+        //most of this should move to entities
+        //physics is biggest at the bottom
         // because p2 already keeps a list of bodies, we don't reallly need entityIds for it
-        this.entityIds = new Set();
+        this.listeningEntities = new Map();
         this.world = new p2.World({gravity: [0,9.78]});
 
         let planesOptions = [
@@ -35,14 +31,17 @@ export class System{
         }
     }
 
-    update(){
-        //magic number, should be [assed in from framework to match global lag step]
-        let ms = 1000/60;
-        this.world.step(ms/1000);
+    update(ms_per_update){
+        //magic number, should be passed in from framework to match global lag step]
+        //no update for now, I think p2.js has enough update methods built in
+        this.world.step(ms_per_update);
     }
 
     addEntity(entity){
-        this.world.addBody(entity.attributes.get('physics').body);
-        this.entityIds.add(entity.id);
+        if(!entity.components.has(systemName)){
+            console.log("Physics could not register entity " + entity.id + ", missing component")
+        }else{
+            this.listeningEntities.set(entity.id, entity);
+        }
     }
 }

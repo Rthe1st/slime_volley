@@ -2,22 +2,15 @@
 
 'use strict';
 
-import * as p2 from 'p2';
-
-import *  as physicsSystem from '../components/physicsSystem.js';
-import slimeMovement from '../components/slimeMovement.js';
+import {systemName as physicsSystemName} from '../systems/game/physics/system.js';
+import SlimePhysics from '../systems/game/physics/components/slime.js';
+import SlimeMovement from '../systems/input/components/slime.js';
+import {systemName as inputSystemName} from '../systems/input/system.js';
 
 export default function (entity, framework){
+    entity.components.set(physicsSystemName, new SlimePhysics(entity));
+    framework.gameSystems.get(physicsSystemName).addEntity(entity);
 
-        let body = new p2.Body({
-            mass: 1,
-            position: [400, 300],
-            angle: 0,
-            velocity: [0, 0],
-            angularVelocity: 0
-        });
-        body.addShape(new p2.Circle({ radius: 60 }));
-        entity.attributes.set('physics', new physicsSystem.Attribute(body));
-        framework.componentSystems.get(physicsSystem.systemName).addEntity(entity);
-        entity.behaviors.set('slimeMovement', new slimeMovement(entity));
+    entity.components.set(inputSystemName, new SlimeMovement(entity));
+    framework.inputSystems.get(inputSystemName).addEntity(entity);
 }

@@ -2,11 +2,11 @@
 
 'use strict';
 
-export class System{
+export default class networking {
     constructor(){
         this.ws = new WebSocket('ws://127.0.0.1');
         this.queue = [];
-        this.messageCallbacks = new Map();
+        this.listeners = new Map();
         this.ws.onopen = function() {
             while(this.queue.length > 0){
                 let type, payload;
@@ -17,16 +17,9 @@ export class System{
 
         this.ws.onmessage = function(event) {
             let message = JSON.parse(event.data);
-            if(this.messageCallbacks.has(message.type)){
-                this.messageCallbacks.get(message.type)(message.payload);
-            }else{
-                console.log("message type " + message.type + " not registered");
-            }
+            this.getListener(message.type)(message.payload);
         }.bind(this);
-    }
-
-    registerMessageCallback(type, callback){
-        this.messageCallbacks.set(type, callback);
+        this.getListener.get("connect")(null);
     }
 
     send(type, payload){
@@ -37,5 +30,17 @@ export class System{
         }else{
             this.queue.push(message);
         }
+    }
+
+    getListener(type){
+        if(this.listeners.has(type)){
+            return this.listeners.get(type);
+        }else{
+            console.log("message type " + type + " not registered");
+        }
+    }
+
+    addListener(type, callback){
+        this.listeners.set(type, callback);
     }
 }

@@ -22,80 +22,87 @@
 //a client sends deltas, a server sends state (for now)
 //they're replay algs differ slightly (but both effect and depend on gameInput)
 
-
-class Entity{
-
-    constructor(id){
-        this.id = id;
-        this.attributes = new Map();
-        this.behaviors = new Map();
-    }
-
-    sendMessage(message){
-        for(let behavior of this.behaviors.values()){
-            behavior.recieveMessage(message);
-        }
-    }
-
-}
+import LocalInput from './localInput.js';
+import Networking from './networking.js';
+import GameClock from './gameClock.js';
+import StateControl from './stateControl.js';
+import ComponentManagement from '../../shared/framework/componentManagement.js';
+import {EntityManager} from '../../shared/framework/entityManagement.js';
 
 export default class Framework{
 
-    constructor(initilise, localInput, networking, gameClock, componentSystems){
+    constructor(inputAdapters, initilise, loadState, gameSystems, graphicSystems, inputSystems){
         this.initilise = initilise;
-        this.localInput = new localInput.System();
-        this.networking = new networking.System();
-        this.gameClock = new gameClock();
-        this.networking.registerMessageCallback("estimateLag", this.gameClock.estimateLag.bind(this.gameClock));
-        this.networking.registerMessageCallback("state", function (){});
-        this.componentSystems = new Map();
-        for(let componentSystem of componentSystems){
-            this.componentSystems.set(componentSystem.systemName, new componentSystem.System());
-        }
-        //replace with uuid?
-        this.nextEntityId = 0;
-        this.entities = new Map();
+        this.loadState = loadState;
+        this.networking = new Networking();
+        this.gameClock = new GameClock();
+        this.entityManager = new EntityManager();
+        this.stateControl = new StateControl();
+        this.inputAdapters = [];
+        this.networking.addListener("estimateLag", this.gameClock.estimateLag.bind(this.gameClock));
+        this.networking.addListener("state", function (stateInfo){
+            this.stateControl.storeState(stateInfo.state);
+            this.gameClock.newStateTime(stateInfo.stateGameTime);
+        });
+
+        this.networking.addListener("playerInfo", function (playerInfo){
+            this.localPlayer = playerInfo.player;
+            for(let inputAdapter of inputAdapters){
+                this.inputAdapters.push(new inputAdapter(this.localPlayer));
+            }
+            this.localInput = new LocalInput();
+            this.start();
+        }).bind(this);
+        this.inputSystems = new ComponentManagement(inputSystems);
+        this.gameSystems = new ComponentManagement(gameSystems);
+        this.graphicSystems = new ComponentManagement(graphicSystems);
         this.initilise(this);
-        this.start();
     }
 
-    createEntity(){
-        let entity = new Entity(this.nextEntityId);
-        this.entities.set(this.nextEntityId, entity);
-        this.nextEntityId++;
-        return entity;
-    }
-
-    //the client probably shouldnt call this untill they get a conection (and a serverStartTime)
     start(){
-        this.lag = 0;
-        this.previous = Date.now();
+        this.currentSimulated = Date.now();
         window.requestAnimationFrame(this.updateLoop.bind(this));
     }
 
     updateLoop(){
-        //to get performance scaling benifits from fix timestep
-        //all "graphical" systems should be update in a separte loop, post timestep update
         let ms_per_update = 1000/60;
-        let current = Date.now();
-        let elapsed = current - this.previous;
-        this.previous = current;
-        this.lag += elapsed;
-        this.localInput.update();
-        this.networking.send("estimateLag", this.gameClock.estimateLagPacketPayload());
-        this.networking.send("input", {});
-        //proccess any returned states here
-        //console.log(this.gameClock.gameTime());
-        //need to think about splitting rendering out of this loop
-        while(this.lag >= ms_per_update){
-            this.lag -= ms_per_update;
-            //this order is determinitistic, is in insertion order
-            //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
-            for(let componentSystem of this.componentSystems.values()){
-                componentSystem.update();
+        this.networking.send("estimateLag", GameClock.estimateLagPacketPayload());
+
+        if(this.stateControl.updateNeeded){
+            this.loadState(this.stateControl.state);
+            this.stateControl.updateNeeded = false;
+            //this means game code called in simulation must not depend on gameClock
+            //not really a bad thing?
+            for(let rewindSimulationTime = this.gameClock.toLocalTime(this.stateControl.newestStateGameTime);
+                this.currentSimulated < rewindSimulationTime;
+                rewindSimulationTime += ms_per_update){
+
+                let currentActions = this.localInput.simulateInput(rewindSimulationTime, ms_per_update);
+                this.inputSystems.update(ms_per_update, currentActions);
+                this.gameSystems.update(ms_per_update);
             }
         }
+        for(let inputAdapter of this.inputAdapters){
+            let actionPacks = inputAdapter.getActionPacks();
+            this.localInput.insertNewActionPacks(inputAdapter.getActionPacks());
+            for(let actionPack of actionPacks){
+                //this means even with perfect lag correct, client and server will apply input at different times
+                //but may be more important to send to server as soon as possible
+                let inGameTime = this.gameClock.toGameTime(Date.now());
+                this.networking.send("actions", {"gameTime": inGameTime, "actions": actionPack.actions, "player": actionPack.player});
+            }
+        }
+        //you might be able to improve this by estimating how many time gameSystem will update
+        //then multiplying timeStep by that
+        while(Date.now() - this.currentSimulated > ms_per_update){
+            let currentActions = this.localInput.simulateInput(this.currentSimulated, ms_per_update);
+            this.inputSystems.update(ms_per_update, currentActions);
+            this.gameSystems.update(ms_per_update);
+            this.currentSimulated += ms_per_update;
+        }
+        //this shouldnt use ms_per_second because its outside core loop
+        //should be "time since last update"
+        this.graphicSystems.update(ms_per_update);
         window.requestAnimationFrame(this.updateLoop.bind(this));
-
     }
 }

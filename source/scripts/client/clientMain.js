@@ -3,21 +3,26 @@
 "use strict";
 
 import Framework from './framework/core.js';
-import *  as physicsSystem from '../shared/components/physicsSystem.js';
-import *  as drawingSystem from './components/drawingSystem.js';
+import KeysAdapter from 'inputAdapter/Keyboard.js';
+import *  as physicsSystem from '../shared/systems/game/physics/system.js';
+import *  as drawingSystem from './systems/graphics/drawingSystem.js';
+import *  as inputSystem from '../shared/systems/input/system.js';
 import slimeGrouping from './groupings/slimeGUI.js';
-import * as localInput from './framework/localInput.js';
-import * as networking from './framework/networking.js';
-import GameClock from './framework/gameClock.js';
 
 
-function initilise(framework){
+function initialise(framework){
     console.log('framework inited');
-    let entity = framework.createEntity();
+    let entity = framework.entityManager.createEntity();
     slimeGrouping(entity, framework);
-    //entity.become(slimeSystem.slimeGrouping);
+}
+
+function loadState(state){
+    //console.log(state.randomNumber);
 }
 
 window.onload = function(){
-    let framework = new Framework(initilise, localInput, networking, GameClock, [physicsSystem, drawingSystem]);
+    let gameSystems = [physicsSystem];
+    let graphicSystems = [drawingSystem];
+    let inputSystems = [inputSystem];
+    let framework = new Framework(KeysAdapter, initialise, loadState, gameSystems, graphicSystems, inputSystems);
 };

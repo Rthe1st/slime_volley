@@ -1,55 +1,46 @@
-let tag = 'localInput';
+//component contract:
+//update(actions)
 
-export class Behavior{
-    constructor(entity, keyMapping){
-        this.entity = entity;
-        this.keyMapping = new Map(keyMapping);
+export default class LocalInput{
+
+    constructor(){
+        this.actionPacks = [];
     }
-    update(keys){
-        for(let [key, action] of this.keyMapping.entries()){
-            if(keys.isDown(key)){
-                this.entity.sendMessage({'type': action});
+
+    simulateInput(rewindSimulationTime, time_step){
+        let actionPacks = [];
+        //looping through a list is a bit shit
+        for(let actionPack of this.actionPacks){
+            if(actionPack.time > rewindSimulationTime && actionPack.time < rewindSimulationTime + time_step) {
+                actionPacks.append(actionPack);
             }
         }
+        return actionPacks
     }
 
-    recieveMessage(){}
-}
-
-class Keys {
-    constructor(){
-        this.pressed = new Map();
-    }
-
-    isDown(keyCode) {
-        return this.pressed.has(keyCode);
-    }
-
-    onKeydown(event) {
-        this.pressed.set(event.keyCode, true);
-    }
-
-    onKeyup(event) {
-        this.pressed.delete(event.keyCode);
-    }
-}
-
-export class System{
-    constructor(){
-        this.entities = new Map();
-        this.keys = new Keys();
-        //woulod be better to attach to pixi rendering window?
-        window.addEventListener('keyup', function(event) { this.keys.onKeyup(event); }.bind(this), false);
-        window.addEventListener('keydown', function(event) { this.keys.onKeydown(event); }.bind(this), false);
-    }
-
-    update(){
-        for(let entity of this.entities.values()){
-            entity.behaviors.get(tag).update(this.keys);
+    //call this after a state load
+    clearOldActions(stateTime){
+        let numberOfOldActionPacks = 0;
+        for(let actionPack of this.actionPacks){
+            if(actionPack.time < stateTime){
+                numberOfOldActionPacks++;
+            }else{
+                break;
+            }
         }
+        this.actionPacks.slice(0, numberOfOldActionPacks);
     }
 
-    addEntity(entity){
-        this.entities.set(entity.id, entity);
+    insertNewActionPacks(newActionPacks){
+        //again, loops are pretty shit
+        for(let newActionPack of newActionPacks){
+            for(let index=0; index<this.actionPacks.length; index++){
+                let indexActionPack = this.actionPacks[index];
+                if(indexActionPack.time < newActionPack.time){
+                    this.actionPacks.splice(index+1, 0, newActionPack);
+                    break;
+                }
+            }
+        }
     }
 }
