@@ -9,9 +9,11 @@ export class InputSystem{
         this.listeningEntities = new Map();
     }
 
-    update(ms_per_update, actions, player){
-        for(let entity of this.listeningEntities.get(player)){
-            entity.inputComponents.get(systemName).update(ms_per_update, actions);
+    update(ms_per_update, input){
+        for(let player, actions of input.entries()){
+            for(let entity of this.listeningEntities.get(player)){
+                entity.inputComponents.get(systemName).update(ms_per_update, actions);
+            }
         }
     }
 

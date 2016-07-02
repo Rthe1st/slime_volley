@@ -1,5 +1,6 @@
 export default class KeysAdapter {
-    constructor(localPlayer){
+    constructor(localPlayer, gameClock){
+        this.gameClock = gameClock;
         this.localPlayer = localPlayer;
         this.pressed = new Map();
         window.addEventListener('keyup', function(event) { this.onKeyup(event); }.bind(this), false);
@@ -39,6 +40,6 @@ export default class KeysAdapter {
         if(this.isDown(right)){
             actions.set("moveRight", true);
         }
-        return [{"time": Date.now(), "player": this.localPlayer, "actions":actions}];
+        return [{"frame": this.gameClock.discreteTime(), "player": this.localPlayer, "actions": actions}];
     }
 }

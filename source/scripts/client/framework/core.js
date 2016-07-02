@@ -2,30 +2,11 @@
 
 'use strict';
 
-//notes:
-//I'm worried about unknowns around message passing between systems/propogation
-//and this interacting witht the "update system"
-//work around for now: make all message passing "asynchrouns"
-//i.e. compentnets may recive messages anytime but must only act on them in their update function
-//(an alternative could be to get rid opf updates, replace with a "time has passed" message?)
-
-//rendering should be seperated from update
-//systems should note wether they require rendering. If so, call them in reneding loop
-//each of their functions should have a render method (which should only depend of system/compoents state)(and not change it)
-//graphical state should be kept distinct from a components game state
-
-//exteral local (non-network) input should be read with getInput and stored in gameInput
-//network should then process any input from network
-
-//main difference between server and client is:
-//when a client renders, a server "sends state"
-//a client sends deltas, a server sends state (for now)
-//they're replay algs differ slightly (but both effect and depend on gameInput)
-
 import LocalInput from './localInput.js';
 import Networking from './networking.js';
-import GameClock from './gameClock.js';
+import GameClock from '../../shared/framework/gameClock.js';
 import StateControl from './stateControl.js';
+import LagEstimationCalculator from './LagEstimation.js';
 import ComponentManagement from '../../shared/framework/componentManagement.js';
 import {EntityManager} from '../../shared/framework/entityManagement.js';
 
@@ -38,18 +19,26 @@ export default class Framework{
         this.gameClock = new GameClock();
         this.entityManager = new EntityManager();
         this.stateControl = new StateControl();
+        this.lagEstimation = LagEstimationCalculator();
         this.inputAdapters = [];
-        this.networking.addListener("estimateLag", this.gameClock.estimateLag.bind(this.gameClock));
+        this.networking.addListener("offsetEstimatePing", function (data){
+            this.lagEstimation.estimateClientServerOffset(data.clientTime, data.serverTime);
+        });
         this.networking.addListener("state", function (stateInfo){
-            this.stateControl.storeState(stateInfo.state);
-            this.gameClock.newStateTime(stateInfo.stateGameTime);
+            //the frame received here will be lower then "true" current frame due to lag
+            //true server frame = stateInfo.frame + (lag%ms_per_frame)
+            //add estimators to account for this
+            let timeWhenReceived = Date.now();
+            let lag = this.lagEstimation.estimateLag(timeWhenReceived, stateInfo.serverTime);
+            this.stateControl.storeState(stateInfo.state, stateInfo.frame, lag, timeWhenReceived);
         });
 
         this.networking.addListener("playerInfo", function (playerInfo){
             this.localPlayer = playerInfo.player;
             for(let inputAdapter of inputAdapters){
-                this.inputAdapters.push(new inputAdapter(this.localPlayer));
+                this.inputAdapters.push(new inputAdapter(this.localPlayer, this.gameClock));
             }
+            this.stateControl.storeState(playerInfo.state, playerInfo.frame);
             this.localInput = new LocalInput();
             this.start();
         }).bind(this);
@@ -60,49 +49,64 @@ export default class Framework{
     }
 
     start(){
-        this.currentSimulated = Date.now();
+        this.endOfLastUpdate = Date.now();
         window.requestAnimationFrame(this.updateLoop.bind(this));
     }
 
     updateLoop(){
-        let ms_per_update = 1000/60;
-        this.networking.send("estimateLag", GameClock.estimateLagPacketPayload());
-
+        //doing this every loop is probably a waste of bandwidth
+        this.networking.send("offsetEstimatePing", {"clientTime": Date.now()});
         if(this.stateControl.updateNeeded){
+            this.endOfLastUpdate = this.stateControl.timeWhenReceived;
+            this.localInput.clearOldActions(this.stateControl.frame);
             this.loadState(this.stateControl.state);
             this.stateControl.updateNeeded = false;
-            //this means game code called in simulation must not depend on gameClock
-            //not really a bad thing?
-            for(let rewindSimulationTime = this.gameClock.toLocalTime(this.stateControl.newestStateGameTime);
-                this.currentSimulated < rewindSimulationTime;
-                rewindSimulationTime += ms_per_update){
+            //use lag estimates to use this instead:
+            //let fastForwardSimulationFrame = this.stateControl.frame + networkLag%ms_per_frame
+            //so after loading a state, we should update:
+            //this.gameClock.frameCount == stateInfo.frame + lag Account;
+            let frameDuringLag = Math.floor(this.stateControl.lag/this.gameClock.ms_per_frame);
+            this.gameClock.frameCount = this.stateControl.frame + frameDuringLag;
+            this.leftOverLag = (this.stateControl.lag%this.gameClock.ms_per_frame);
+            for(let fastForwardSimulationFrame = this.stateControl.frame;
+                fastForwardSimulationFrame <= this.gameClock.discreteTime; fastForwardSimulationFrame++){
 
-                let currentActions = this.localInput.simulateInput(rewindSimulationTime, ms_per_update);
-                this.inputSystems.update(ms_per_update, currentActions);
-                this.gameSystems.update(ms_per_update);
+                let simulatedInput = this.localInput.simulateInput(fastForwardSimulationFrame);
+                this.inputSystems.update(this.gameClock.ms_per_frame, simulatedInput);
+                this.gameSystems.update(this.gameClock.ms_per_frame);
             }
         }
+
         for(let inputAdapter of this.inputAdapters){
-            let actionPacks = inputAdapter.getActionPacks();
+            //if actionPacks use current frame, then they will be 1 behind
             this.localInput.insertNewActionPacks(inputAdapter.getActionPacks());
-            for(let actionPack of actionPacks){
-                //this means even with perfect lag correct, client and server will apply input at different times
-                //but may be more important to send to server as soon as possible
-                let inGameTime = this.gameClock.toGameTime(Date.now());
-                this.networking.send("actions", {"gameTime": inGameTime, "actions": actionPack.actions, "player": actionPack.player});
-            }
+            //+1 on discrete time?
+            let frame = this.gameClock.discreteTime;
+            let nextSimulatedInput = this.localInput.simulateInput(frame);
+            this.networking.send("actions", {"frame": frame, "input": nextSimulatedInput});
         }
-        //you might be able to improve this by estimating how many time gameSystem will update
-        //then multiplying timeStep by that
-        while(Date.now() - this.currentSimulated > ms_per_update){
-            let currentActions = this.localInput.simulateInput(this.currentSimulated, ms_per_update);
-            this.inputSystems.update(ms_per_update, currentActions);
-            this.gameSystems.update(ms_per_update);
-            this.currentSimulated += ms_per_update;
+
+        //doesn't account for time actually spent in the loop below
+        //we should check it's negligible
+        for(var lagFromUpdates = (Date.now() - this.endOfLastUpdate + this.leftOverLag);
+            lagFromUpdates > this.gameClock.ms_per_frame;
+            lagFromUpdates -= this.gameClock.ms_per_frame){
+
+            let simulatedInput = this.localInput.simulateInput(this.gameClock.discreteTime);
+            this.inputSystems.update(this.gameClock.ms_per_frame, simulatedInput);
+            this.gameSystems.update(this.gameClock.ms_per_frame);
+            this.gameClock.frameCount++;
         }
-        //this shouldnt use ms_per_second because its outside core loop
-        //should be "time since last update"
-        this.graphicSystems.update(ms_per_update);
+
+        this.endOfLastUpdate = Date.now();
+        this.leftOverLag = lagFromUpdates;
+
+        //let ms_per_frame be 10, if we get lagFromUpdates down to 5
+        //then we're halfway to the next frame, so have graphics account for that
+        //by drawing everything 50% ahead
+        let percentToExtrapolate = this.leftOverLag/this.gameClock.ms_per_frame;
+        this.graphicSystems.update(percentToExtrapolate);
+
         window.requestAnimationFrame(this.updateLoop.bind(this));
     }
 }

@@ -4,41 +4,42 @@
 export default class LocalInput{
 
     constructor(){
-        this.actionPacks = [];
+        this.actionPacks = new Map();
     }
 
-    simulateInput(rewindSimulationTime, time_step){
-        let actionPacks = [];
-        //looping through a list is a bit shit
-        for(let actionPack of this.actionPacks){
-            if(actionPack.time > rewindSimulationTime && actionPack.time < rewindSimulationTime + time_step) {
-                actionPacks.append(actionPack);
-            }
-        }
-        return actionPacks
+    simulateInput(rewindSimulationFrame){
+        return this.actionPacks.get(rewindSimulationFrame);
     }
 
-    //call this after a state load
-    clearOldActions(stateTime){
-        let numberOfOldActionPacks = 0;
-        for(let actionPack of this.actionPacks){
-            if(actionPack.time < stateTime){
-                numberOfOldActionPacks++;
+    clearOldActions(frameCutoff){
+        //may be worth caching this sort
+        let frames = this.actionPacks.keys().sort();
+        for(let frame of frames){
+            if(frame < frameCutoff){
+                this.actionPacks.delete(frame)
             }else{
                 break;
             }
         }
-        this.actionPacks.slice(0, numberOfOldActionPacks);
     }
 
     insertNewActionPacks(newActionPacks){
         //again, loops are pretty shit
         for(let newActionPack of newActionPacks){
-            for(let index=0; index<this.actionPacks.length; index++){
-                let indexActionPack = this.actionPacks[index];
-                if(indexActionPack.time < newActionPack.time){
-                    this.actionPacks.splice(index+1, 0, newActionPack);
-                    break;
+            let frame = newActionPack.frame;
+            if(!this.actionPacks.has(frame)){
+                this.actionPacks.set(frame, new Map());
+            }
+            let frameMap = this.actionPacks.get(frame);
+            let player = newActionPack.player;
+            let actions = newActionPack.actions;
+            if(!frameMap.has(player)){
+                frameMap.set(player, actions);
+            }else{
+                //overwrite existing actions
+                let existingActions = frameMap.get(player);
+                for(let action, value of actions.entries()){
+                    existingActions.set(action, value);
                 }
             }
         }

@@ -6,11 +6,12 @@
 export default class StateControl{
     constructor(){
         this.updateNeeded = false;
-        this.newestStateGameTime = 0;
     }
-    storeState(state, gameTime){
+    storeState(state, frame, lag, timeWhenReceived){
         this.state = state;
         this.updateNeeded = true;
-        this.newestStateGameTime = gameTime
+        this.frame = frame;
+        this.lag = lag;
+        this.timeWhenReceived = timeWhenReceived;
     }
 }
