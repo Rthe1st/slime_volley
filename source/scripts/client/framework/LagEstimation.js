@@ -11,7 +11,7 @@ export default class LagEstimationCalculator {
 
     estimateClientServerOffset(clientSentTime, serverTime){
         "use strict";
-        let currentTime = Date.now();
+        let currentTime = performance.now();
         let estimationFactor = 0.65; //the closer this is to 0.5, the more accurate it's likely to be
                                      //but the more likely you are to underestimate newLag
 

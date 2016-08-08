@@ -2,7 +2,7 @@
 'use strict';
 
 //this timing/syncing method relies on:
-//1) Any offset between the server and client Date.now()'s remaining constant
+//1) Any offset between the server and client performance.now()'s remaining constant
 export default class StateControl{
     constructor(){
         this.updateNeeded = false;

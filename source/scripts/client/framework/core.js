@@ -36,7 +36,7 @@ export default class Framework{
     }
 
     start(){
-        this.endOfLastUpdate = Date.now();
+        this.endOfLastUpdate = performance.now();
         console.log("dis time: " + this.gameClock.discreteTime);
         this.loopCount = 0;
         this.lastLoopStart = performance.now();
@@ -50,7 +50,7 @@ export default class Framework{
         console.log("fps: " + fps);
         this.lastLoopStart = thisLoopStart;
         //doing this every loop is probably a waste of bandwidth
-        this.networking.send("offsetEstimatePing", {"clientTime": Date.now()});
+        this.networking.send("offsetEstimatePing", {"clientTime": performance.now()});
         if(this.stateControl.updateNeeded){
             this.loadState(this, this.stateControl.state);
             this.stateControl.updateNeeded = false;
@@ -98,7 +98,7 @@ export default class Framework{
 
         //doesn't account for time actually spent in the loop below
         //we should check it's negligible
-        for(var lagFromUpdates = (Date.now() - this.endOfLastUpdate + this.leftOverLag);
+        for(var lagFromUpdates = (performance.now() - this.endOfLastUpdate + this.leftOverLag);
             lagFromUpdates > this.gameClock.ms_per_frame;
             lagFromUpdates -= this.gameClock.ms_per_frame){
 
@@ -108,7 +108,7 @@ export default class Framework{
             this.gameClock.frameCount++;
         }
 
-        this.endOfLastUpdate = Date.now();
+        this.endOfLastUpdate = performance.now();
         this.leftOverLag = lagFromUpdates;
 
         //let ms_per_frame be 10, if we get lagFromUpdates down to 5

@@ -8,7 +8,7 @@ function state(stateInfo){
     //the frame received here will be lower then "true" current frame due to lag
     //true server frame = stateInfo.frame + (lag%ms_per_frame)
     //add estimators to account for this
-    let timeWhenReceived = Date.now();
+    let timeWhenReceived = performance.now();
     this.stateControl.storeState(stateInfo.state, stateInfo.frame, stateInfo.serverTime, timeWhenReceived);
 }
 
@@ -19,7 +19,7 @@ export function dummyListener(){
 }
 
 export function playerInfo(playerInfo){
-    let timeWhenReceived = Date.now();
+    let timeWhenReceived = performance.now();
     this.localPlayer = playerInfo.player;
     for(let inputAdapter of this.inputAdapterClasses){
         this.inputAdapters.push(new inputAdapter(this.localPlayer, this.gameClock));
