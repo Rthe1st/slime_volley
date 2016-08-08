@@ -4,7 +4,7 @@
 
 export default class networking {
     constructor(){
-        this.ws = new WebSocket('ws://127.0.0.1');
+        this.ws = new WebSocket('ws://192.168.0.4');
         this.queue = [];
         this.listeners = new Map();
         this.ws.onopen = function() {
@@ -17,9 +17,15 @@ export default class networking {
 
         this.ws.onmessage = function(event) {
             let message = JSON.parse(event.data);
-            this.getListener(message.type)(message.payload);
+            if(message.type =="state"){
+                //console.log("message: " + message);
+                //console.log(message.payload);
+            }
+            if(this.listeners.has(message.type)){
+                this.getListener(message.type)(message.payload);
+            }
         }.bind(this);
-        this.getListener.get("connect")(null);
+        //this.getListener("connect")(null);
     }
 
     send(type, payload){
@@ -36,11 +42,14 @@ export default class networking {
         if(this.listeners.has(type)){
             return this.listeners.get(type);
         }else{
-            console.log("message type " + type + " not registered");
+            //console.log("message type " + type + " not registered");
+            //console.log(this.listeners.keys());
         }
     }
 
     addListener(type, callback){
+        //console.log("adding " + type + " to listeners");
         this.listeners.set(type, callback);
+        //console.log("listeners has "+ type + " " + this.listeners.has(type));
     }
 }

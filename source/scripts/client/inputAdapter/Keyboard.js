@@ -1,6 +1,7 @@
 export default class KeysAdapter {
     constructor(localPlayer, gameClock){
         this.gameClock = gameClock;
+        console.log(this.gameClock);
         this.localPlayer = localPlayer;
         this.pressed = new Map();
         window.addEventListener('keyup', function(event) { this.onKeyup(event); }.bind(this), false);
@@ -24,8 +25,8 @@ export default class KeysAdapter {
         //need map if we put values in it
         //but actions are "untrsuted", so what numbers can be generated untrusted?
         let actions = new Map();
-        let up = 38;
-        let down = 40;
+        let up = 40;
+        let down = 38;
         let left = 37;
         let right = 39;
         if(this.isDown(up)){
@@ -40,6 +41,6 @@ export default class KeysAdapter {
         if(this.isDown(right)){
             actions.set("moveRight", true);
         }
-        return [{"frame": this.gameClock.discreteTime(), "player": this.localPlayer, "actions": actions}];
+        return [{"frame": this.gameClock.discreteTime, "player": this.localPlayer, "actions": actions}];
     }
 }

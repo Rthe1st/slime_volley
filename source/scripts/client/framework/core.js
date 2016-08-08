@@ -7,8 +7,9 @@ import Networking from './networking.js';
 import GameClock from '../../shared/framework/gameClock.js';
 import StateControl from './stateControl.js';
 import LagEstimationCalculator from './LagEstimation.js';
-import ComponentManagement from '../../shared/framework/componentManagement.js';
+import ComponentManagement from '../../shared/framework/componentSystemManagement.js';
 import {EntityManager} from '../../shared/framework/entityManagement.js';
+import * as networkListeners from './networkListeners.js';
 
 export default class Framework{
 
@@ -17,73 +18,82 @@ export default class Framework{
         this.loadState = loadState;
         this.networking = new Networking();
         this.gameClock = new GameClock();
-        this.entityManager = new EntityManager();
+        this.entityManager = new EntityManager(this);
         this.stateControl = new StateControl();
-        this.lagEstimation = LagEstimationCalculator();
-        this.inputAdapters = [];
-        this.networking.addListener("offsetEstimatePing", function (data){
-            this.lagEstimation.estimateClientServerOffset(data.clientTime, data.serverTime);
-        });
-        this.networking.addListener("state", function (stateInfo){
-            //the frame received here will be lower then "true" current frame due to lag
-            //true server frame = stateInfo.frame + (lag%ms_per_frame)
-            //add estimators to account for this
-            let timeWhenReceived = Date.now();
-            let lag = this.lagEstimation.estimateLag(timeWhenReceived, stateInfo.serverTime);
-            this.stateControl.storeState(stateInfo.state, stateInfo.frame, lag, timeWhenReceived);
-        });
-
-        this.networking.addListener("playerInfo", function (playerInfo){
-            this.localPlayer = playerInfo.player;
-            for(let inputAdapter of inputAdapters){
-                this.inputAdapters.push(new inputAdapter(this.localPlayer, this.gameClock));
-            }
-            this.stateControl.storeState(playerInfo.state, playerInfo.frame);
-            this.localInput = new LocalInput();
-            this.start();
-        }).bind(this);
+        this.lagEstimation = new LagEstimationCalculator();
+        this.inputAdapterClasses = inputAdapters;
+        this.inputAdapters = [];//this is filled by "playerInfo"
+        this.localInput = new LocalInput();
+        //register dummy listeners
+        //untill we're ready to handle for real (post-game start)
+        this.networking.addListener("offsetEstimatePing", networkListeners.dummyListener);
+        this.networking.addListener("state", networkListeners.dummyListener);
+        this.networking.addListener("playerInfo", networkListeners.playerInfo.bind(this));
         this.inputSystems = new ComponentManagement(inputSystems);
         this.gameSystems = new ComponentManagement(gameSystems);
         this.graphicSystems = new ComponentManagement(graphicSystems);
-        this.initilise(this);
+        //this.networkding.send("connect", null);
     }
 
     start(){
         this.endOfLastUpdate = Date.now();
+        console.log("dis time: " + this.gameClock.discreteTime);
+        this.loopCount = 0;
+        this.lastLoopStart = performance.now();
         window.requestAnimationFrame(this.updateLoop.bind(this));
+
     }
 
     updateLoop(){
+        let thisLoopStart = performance.now();
+        let fps = 1000 / (thisLoopStart - this.lastLoopStart);
+        console.log("fps: " + fps);
+        this.lastLoopStart = thisLoopStart;
         //doing this every loop is probably a waste of bandwidth
         this.networking.send("offsetEstimatePing", {"clientTime": Date.now()});
         if(this.stateControl.updateNeeded){
+            this.loadState(this, this.stateControl.state);
+            this.stateControl.updateNeeded = false;
+            this.gameClock.frameCount = this.stateControl.frame;
+
             this.endOfLastUpdate = this.stateControl.timeWhenReceived;
             this.localInput.clearOldActions(this.stateControl.frame);
-            this.loadState(this.stateControl.state);
+            //console.log(this.stateControl.state);
+            this.loadState(this, this.stateControl.state);
             this.stateControl.updateNeeded = false;
-            //use lag estimates to use this instead:
-            //let fastForwardSimulationFrame = this.stateControl.frame + networkLag%ms_per_frame
-            //so after loading a state, we should update:
-            //this.gameClock.frameCount == stateInfo.frame + lag Account;
-            let frameDuringLag = Math.floor(this.stateControl.lag/this.gameClock.ms_per_frame);
-            this.gameClock.frameCount = this.stateControl.frame + frameDuringLag;
-            this.leftOverLag = (this.stateControl.lag%this.gameClock.ms_per_frame);
+            let timeTakenToGetStateToClient = this.lagEstimation.estimateLag(this.stateControl.timeWhenReceived, this.stateControl.serverTimeWhenSent);
+            let framesDuringLag = Math.floor(timeTakenToGetStateToClient/this.gameClock.ms_per_frame);
+            this.gameClock.frameCount = this.stateControl.frame + framesDuringLag;
+            this.leftOverLag = timeTakenToGetStateToClient%this.gameClock.ms_per_frame;
             for(let fastForwardSimulationFrame = this.stateControl.frame;
-                fastForwardSimulationFrame <= this.gameClock.discreteTime; fastForwardSimulationFrame++){
-
+                fastForwardSimulationFrame < this.gameClock.discreteTime; fastForwardSimulationFrame++){
                 let simulatedInput = this.localInput.simulateInput(fastForwardSimulationFrame);
                 this.inputSystems.update(this.gameClock.ms_per_frame, simulatedInput);
                 this.gameSystems.update(this.gameClock.ms_per_frame);
             }
         }
 
+        this.loopCount++;
         for(let inputAdapter of this.inputAdapters){
             //if actionPacks use current frame, then they will be 1 behind
-            this.localInput.insertNewActionPacks(inputAdapter.getActionPacks());
+            let stuff = inputAdapter.getActionPacks();
+            if(stuff[0].actions.size > 0){
+                this.localInput.insertNewActionPacks(stuff);
+            }
             //+1 on discrete time?
             let frame = this.gameClock.discreteTime;
             let nextSimulatedInput = this.localInput.simulateInput(frame);
-            this.networking.send("actions", {"frame": frame, "input": nextSimulatedInput});
+            if(nextSimulatedInput.size > 0){
+                let objectVersion = {};
+                for(let entry of nextSimulatedInput.entries()){
+                    objectVersion[entry[0]] = entry[1];
+                    let actions = entry[1];
+                    for(let actionEntry of actions.entries()){
+                        objectVersion[entry[0]][actionEntry[0]] = actionEntry[1];
+                    }
+                }
+                this.networking.send("actions", {"frame": frame, "input": objectVersion});
+            }
         }
 
         //doesn't account for time actually spent in the loop below

@@ -8,15 +8,20 @@ export default class LocalInput{
     }
 
     simulateInput(rewindSimulationFrame){
-        return this.actionPacks.get(rewindSimulationFrame);
+        if(this.actionPacks.has(rewindSimulationFrame)){
+            return this.actionPacks.get(rewindSimulationFrame);
+        }else{
+            return new Map();
+        }
+
     }
 
     clearOldActions(frameCutoff){
         //may be worth caching this sort
-        let frames = this.actionPacks.keys().sort();
+        let frames = Array.from(this.actionPacks.keys()).sort((a,b) => a - b);
         for(let frame of frames){
             if(frame < frameCutoff){
-                this.actionPacks.delete(frame)
+                this.actionPacks.delete(frame);
             }else{
                 break;
             }
@@ -38,7 +43,9 @@ export default class LocalInput{
             }else{
                 //overwrite existing actions
                 let existingActions = frameMap.get(player);
-                for(let action, value of actions.entries()){
+                for(let entry of actions.entries()){
+                    let action = entry[0];
+                    let value = entry[1];
                     existingActions.set(action, value);
                 }
             }

@@ -8,6 +8,18 @@ export default class ComponentManagement{
         }
     }
 
+    get size(){
+        return this.systems.size;
+    }
+
+    get(systemName){
+        return this.systems.get(systemName);
+    }
+
+    set(systemName, system){
+        this.systems.set(systemName, system);
+    }
+
     //input systems take time step and actions
     //others just take actions
     //using .apply is a shit hack making things less clear
@@ -16,12 +28,7 @@ export default class ComponentManagement{
         //this order is deterministic, is in insertion order
         //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
         for(let componentSystem of this.systems.values()){
-            componentSystem.update.apply(componentSystem, this.arguments);
-            //componentSystem.update(timeStep, actions);
-            //or
-            //componentSystem.update(timeStep);
-
+            componentSystem.update.apply(componentSystem, arguments);
         }
     }
 }
-

@@ -9,12 +9,12 @@ import * as p2 from 'p2';
 
 export let systemName = "physics";
 
-export class PhysicSystem{
+export class System{
     constructor(){
         //most of this should move to entities
         //physics is biggest at the bottom
         // because p2 already keeps a list of bodies, we don't reallly need entityIds for it
-        this.listeningEntities = new Map();
+        this.slimeEntities = new Map();
         this.world = new p2.World({gravity: [0,9.78]});
 
         let planesOptions = [
@@ -38,10 +38,19 @@ export class PhysicSystem{
     }
 
     addEntity(entity){
-        if(!entity.components.has(systemName)){
-            console.log("Physics could not register entity " + entity.id + ", missing component")
+        if(!entity.gameComponents.has(systemName)){
+            console.log("Physics could not register entity " + entity.id + ", missing component");
         }else{
-            this.listeningEntities.set(entity.id, entity);
+            this.slimeEntities.set(entity.id, entity);
+        }
+    }
+
+    removeEntity(entity){
+        if(!this.slimeEntities.has(entity.id)){
+            console.log("Couldn't remove entity, no entity entry");
+        }else{
+            entity.gameComponents.get(systemName).destroy();
+            this.slimeEntities.delete(entity.id);
         }
     }
 }
